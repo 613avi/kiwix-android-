@@ -60,6 +60,7 @@ const val TAB_MENU_ITEM_TESTING_TAG = "tabMenuItemTestingTag"
 const val TABS_SIZE_TEXT_TESTING_TAG = "tabsSizeTextTestingTag"
 const val ADD_TO_HOME_SCREEN_MENU_ITEM_TESTING_TAG = "addToHomeScreenMenuItemTestingTag"
 const val FIND_IN_PAGE_MENU_ITEM_TESTING_TAG = "findInPageTestingTag"
+const val SEARCH_IN_CONTENT_MENU_ITEM_TESTING_TAG = "searchInContentMenuItemTestingTag"
 
 @Stable
 class ReaderMenuState(
@@ -78,6 +79,7 @@ class ReaderMenuState(
     fun onRandomArticleMenuClicked()
     fun onReadAloudMenuClicked()
     fun onSearchMenuClickedMenuClicked()
+    fun onSearchInContentMenuClicked()
     fun onAddToHomeScreenMenuClicked()
     fun onFindInPageMenuClicked()
   }
@@ -204,6 +206,14 @@ class ReaderMenuState(
         onClick = { menuClickListener.onSearchMenuClickedMenuClicked() },
         isInOverflow = false,
         testingTag = SEARCH_ICON_TESTING_TAG
+      )
+      // Full-text search over the content of all pages of the book; shown
+      // together with the regular (title) search entry.
+      menuItems += ActionMenuItem(
+        contentDescription = R.string.search_in_all_pages,
+        onClick = { menuClickListener.onSearchInContentMenuClicked() },
+        isInOverflow = true,
+        testingTag = SEARCH_IN_CONTENT_MENU_ITEM_TESTING_TAG
       )
     }
   }

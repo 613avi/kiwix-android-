@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -65,9 +66,9 @@ import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowDeleteSearchDialo
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowToast
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.StartSpeechInput
 import org.kiwix.kiwixmobile.core.utils.ZERO
+import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
 import org.kiwix.kiwixmobile.core.utils.effects.CloseKeyboard
-import org.kiwix.libzim.SuggestionSearch
 import javax.inject.Inject
 
 const val DEBOUNCE_DELAY = 150L
@@ -78,6 +79,7 @@ class SearchViewModel @Inject constructor(
   private val recentSearchRoomDao: RecentSearchRoomDao,
   private val zimReaderContainer: ZimReaderContainer,
   private val searchResultGenerator: SearchResultGenerator,
+  private val kiwixDataStore: KiwixDataStore,
   private val searchMutex: Mutex = Mutex(),
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -89,14 +91,28 @@ class SearchViewModel @Inject constructor(
 
   val actions = MutableSharedFlow<Action>(extraBufferCapacity = Int.MAX_VALUE)
   private val filter = MutableStateFlow("")
+  private val searchMode = MutableStateFlow(SearchMode.TITLE)
   private val searchOrigin = MutableStateFlow(FromWebView)
   private lateinit var alertDialogShower: AlertDialogShower
   private val debouncedSearchQuery = MutableStateFlow("")
 
   init {
+    viewModelScope.launch { restoreSearchMode() }
     viewModelScope.launch { reducer() }
     viewModelScope.launch { actionMapper() }
     viewModelScope.launch { debouncedSearchQuery() }
+  }
+
+  /**
+   * Restores the last used search mode (titles/page content) so the search
+   * screen opens the way the user left it, e.g. when opened via the
+   * "search in all pages" reader menu item.
+   */
+  private suspend fun restoreSearchMode() {
+    val storedSearchMode = runCatching {
+      SearchMode.valueOf(kiwixDataStore.searchMode.first())
+    }.getOrDefault(SearchMode.TITLE)
+    onSearchModeChanged(storedSearchMode)
   }
 
   private suspend fun getSuggestedSpelledWords(word: String, maxCount: Int): List<String> =
@@ -189,14 +205,19 @@ class SearchViewModel @Inject constructor(
   }
 
   private fun searchResults() =
-    filter.asStateFlow()
-      .mapLatest {
-        SearchResultsWithTerm(
-          it,
-          searchResultGenerator.generateSearchResults(it, zimReaderContainer.zimFileReader),
-          searchMutex
-        )
-      }
+    combine(filter.asStateFlow(), searchMode.asStateFlow()) { searchTerm, searchMode ->
+      searchTerm to searchMode
+    }.mapLatest { (searchTerm, searchMode) ->
+      SearchResultsWithTerm(
+        searchTerm,
+        searchResultGenerator.generateSearchResults(
+          searchTerm,
+          searchMode,
+          zimReaderContainer.zimFileReader
+        ),
+        searchMutex
+      )
+    }
 
   @Suppress("CyclomaticComplexMethod")
   private suspend fun actionMapper() {
@@ -320,6 +341,14 @@ class SearchViewModel @Inject constructor(
     updateSearchQuery("")
   }
 
+  fun onSearchModeChanged(mode: SearchMode) {
+    if (searchMode.value == mode) return
+    updateUiState { it.copy(searchMode = mode) }
+    searchMode.value = mode
+    // Remember the chosen mode for the next time the search screen opens.
+    viewModelScope.launch { kiwixDataStore.setSearchMode(mode.name) }
+  }
+
   fun onSearchValueChanged(searchText: String) {
     updateSearchQuery(searchText)
   }
@@ -350,7 +379,7 @@ class SearchViewModel @Inject constructor(
 
 data class SearchResultsWithTerm(
   val searchTerm: String,
-  val suggestionSearch: SuggestionSearch?,
+  val zimSearchResultSet: ZimSearchResultSet?,
   val searchMutex: Mutex?
 )
 
@@ -360,6 +389,7 @@ data class SearchScreenUiState(
   val isLoading: Boolean = false,
   val isLoadingMore: Boolean = false,
   val spellingCorrectionSuggestions: List<String> = emptyList(),
+  val searchMode: SearchMode = SearchMode.TITLE,
   val searchOrigin: SearchOrigin = FromWebView,
   val searchState: SearchState = SearchState(
     "",

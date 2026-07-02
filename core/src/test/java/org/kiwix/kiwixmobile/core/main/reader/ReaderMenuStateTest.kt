@@ -99,6 +99,30 @@ internal class ReaderMenuStateTest {
     assertThat(hasMenuItem(SEARCH_ICON_TESTING_TAG)).isTrue()
   }
 
+  // Search in content menu item tests
+
+  @Test
+  internal fun `search in content menu item is present and in overflow menu`() {
+    assertThat(findMenuItem(SEARCH_IN_CONTENT_MENU_ITEM_TESTING_TAG).isInOverflow).isTrue()
+  }
+
+  @Test
+  internal fun `search in content menu item click invokes onSearchInContentMenuClicked`() {
+    findMenuItem(SEARCH_IN_CONTENT_MENU_ITEM_TESTING_TAG).onClick()
+    verify { menuClickListener.onSearchInContentMenuClicked() }
+  }
+
+  @Test
+  internal fun `search in content menu item is hidden when url is not valid`() {
+    val state = ReaderMenuState(
+      menuClickListener = menuClickListener,
+      isUrlValidInitially = false
+    )
+    assertThat(
+      state.menuItems.any { it.testingTag == SEARCH_IN_CONTENT_MENU_ITEM_TESTING_TAG }
+    ).isFalse()
+  }
+
   // Tab switcher menu item tests
 
   @Test

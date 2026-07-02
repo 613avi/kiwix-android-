@@ -1,0 +1,67 @@
+name: Kiwix APK Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'gecko-build-*'
+    branches:
+      - 'claude/**'
+    paths:
+      - '.github/gecko-release-trigger'
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: 17
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - name: Build regular debug APK (full text search, no Gecko)
+        run: |
+          ./gradlew :app:assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk kiwix-debug.apk
+
+      - name: Build Gecko debug APK (armeabi-v7a)
+        run: |
+          ./gradlew :app:assembleDebug -PwithGecko -PgeckoAbi=armeabi-v7a
+          cp app/build/outputs/apk/debug/app-debug.apk kiwix-gecko-armeabi-v7a-debug.apk
+
+      - name: Build Gecko debug APK (arm64-v8a)
+        run: |
+          ./gradlew :app:assembleDebug -PwithGecko -PgeckoAbi=arm64-v8a
+          cp app/build/outputs/apk/debug/app-debug.apk kiwix-gecko-arm64-v8a-debug.apk
+
+      - name: Create GitHub release with the APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('gecko-build-{0}', github.run_number) }}
+          name: 'Kiwix full text search + embedded Gecko engine (build ${{ github.run_number }})'
+          body: |
+            Kiwix Android with full text (page content) search, in all variants:
+
+            - `kiwix-debug.apk` - regular build (all ABIs, WebView based reader,
+              full text search included, no Gecko engine).
+            - `kiwix-gecko-armeabi-v7a-debug.apk` - 32 bit ARM build with the
+              GeckoView (Firefox) engine embedded inside the reader, for
+              devices without a WebView and without any browser.
+              Requires Android 8 (API 26) or newer.
+            - `kiwix-gecko-arm64-v8a-debug.apk` - the same, for 64 bit ARM
+              devices. Requires Android 8 (API 26) or newer.
+
+            Debug builds, built from ${{ github.ref_name }} (${{ github.sha }}).
+          files: kiwix-*.apk
+          target_commitish: ${{ github.sha }}

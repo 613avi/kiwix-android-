@@ -60,6 +60,7 @@ import org.kiwix.kiwixmobile.core.utils.EXTERNAL_SELECT_POSITION
 import org.kiwix.kiwixmobile.core.utils.INTERNAL_SELECT_POSITION
 import org.kiwix.kiwixmobile.core.utils.KiwixPermissionChecker
 import org.kiwix.kiwixmobile.core.utils.StorageUtils.isExternalStorageWritable
+import org.kiwix.kiwixmobile.core.utils.WebViewAvailability
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore.Companion.DEFAULT_ZOOM
@@ -91,6 +92,7 @@ abstract class CoreSettingsViewModel(
     val shouldShowLanguageCategory: Boolean = false,
     val shouldShowStorageCategory: Boolean = false,
     val shouldShowExternalLinkPreference: Boolean = false,
+    val shouldShowGeckoRendererPreference: Boolean = false,
     val shouldShowPrefWifiOnlyPreference: Boolean = false,
     val versionInformation: String = "",
     val permissionItem: Pair<Boolean, String> = false to ""
@@ -141,6 +143,13 @@ abstract class CoreSettingsViewModel(
       scope = viewModelScope,
       started = SharingStarted.Eagerly,
       initialValue = true
+    )
+
+  val preferGeckoRenderer = kiwixDataStore.preferGeckoRenderer
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.Eagerly,
+      initialValue = false
     )
 
   val textZoom: StateFlow<Int> = kiwixDataStore.textZoom
@@ -204,6 +213,12 @@ abstract class CoreSettingsViewModel(
   fun setExternalLinkPopup(enabled: Boolean) {
     viewModelScope.launch {
       kiwixDataStore.setExternalLinkPopup(enabled)
+    }
+  }
+
+  fun setPreferGeckoRenderer(enabled: Boolean) {
+    viewModelScope.launch {
+      kiwixDataStore.setPreferGeckoRenderer(enabled)
     }
   }
 
@@ -401,6 +416,12 @@ abstract class CoreSettingsViewModel(
 
   @SuppressLint("SetJavaScriptEnabled")
   fun openCredits() {
+    // The credits are rendered inside a WebView; on devices without a usable
+    // WebView show a toast instead of crashing.
+    if (!WebViewAvailability.isWebViewAvailable(context)) {
+      context.toast(R.string.webview_not_available_title, Toast.LENGTH_SHORT)
+      return
+    }
     alertDialogShower.show(
       OpenCredits {
         AndroidView(factory = {

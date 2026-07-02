@@ -26,6 +26,8 @@ allprojects {
     google()
     mavenCentral()
     maven { setUrl("https://jitpack.io") }
+    // For the optional GeckoView based reader (built with -PwithGecko).
+    maven { setUrl("https://maven.mozilla.org/maven2/") }
   }
 }
 

@@ -126,6 +126,36 @@ class KiwixDataStore @Inject constructor(
     }
   }
 
+  /**
+   * Whether pages should be rendered with the bundled Gecko engine instead of
+   * the Android WebView. Only has an effect in builds that include GeckoView.
+   */
+  val preferGeckoRenderer: Flow<Boolean> =
+    context.kiwixDataStore.data.map { prefs ->
+      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] ?: false
+    }
+
+  suspend fun setPreferGeckoRenderer(preferGeckoRenderer: Boolean) {
+    context.kiwixDataStore.edit { prefs ->
+      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] = preferGeckoRenderer
+    }
+  }
+
+  /**
+   * The last used search mode in the search screen, stored as the name of the
+   * [org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode] enum value.
+   */
+  val searchMode: Flow<String> =
+    context.kiwixDataStore.data.map { prefs ->
+      prefs[PreferencesKeys.PREF_SEARCH_MODE].orEmpty()
+    }
+
+  suspend fun setSearchMode(searchMode: String) {
+    context.kiwixDataStore.edit { prefs ->
+      prefs[PreferencesKeys.PREF_SEARCH_MODE] = searchMode
+    }
+  }
+
   val wifiOnly: Flow<Boolean> =
     context.kiwixDataStore.data.map { prefs ->
       prefs[PreferencesKeys.PREF_WIFI_ONLY] ?: true
@@ -597,6 +627,8 @@ class KiwixDataStore @Inject constructor(
     const val PREF_BACK_TO_TOP = "pref_backtotop"
     const val PREF_NEW_TAB_BACKGROUND = "pref_newtab_background"
     const val PREF_EXTERNAL_LINK_POPUP = "pref_external_link_popup"
+    const val PREF_PREFER_GECKO_RENDERER = "pref_prefer_gecko_renderer"
+    const val PREF_SEARCH_MODE = "pref_search_mode"
     const val PREF_SHOW_STORAGE_OPTION = "show_storgae_option"
     const val PREF_IS_FIRST_RUN = "isFirstRun"
     const val PREF_SHOW_BOOKMARKS_ALL_BOOKS = "show_bookmarks_current_book"

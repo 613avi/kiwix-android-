@@ -70,3 +70,4 @@ app/jacoco.exec
 
 # F-Droid auto-publish file
 VERSION_INFO
+buildSrc/.kotlin/

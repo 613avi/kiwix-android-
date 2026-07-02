@@ -20,6 +20,7 @@ package org.kiwix.kiwixmobile.core.main.reader
 import android.Manifest
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -157,6 +158,7 @@ import org.kiwix.kiwixmobile.core.reader.ZimFileReader
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader.Companion.CONTENT_PREFIX
 import org.kiwix.kiwixmobile.core.reader.ZimReaderContainer
 import org.kiwix.kiwixmobile.core.reader.ZimReaderSource
+import org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.SearchItemToOpen
 import org.kiwix.kiwixmobile.core.ui.components.NavigationIcon
 import org.kiwix.kiwixmobile.core.ui.models.IconItem
@@ -177,6 +179,7 @@ import org.kiwix.kiwixmobile.core.utils.StyleUtils.getAttributes
 import org.kiwix.kiwixmobile.core.utils.TAG_FILE_SEARCHED
 import org.kiwix.kiwixmobile.core.utils.TAG_FILE_SEARCHED_NEW_TAB
 import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
+import org.kiwix.kiwixmobile.core.utils.WebViewAvailability
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
@@ -247,6 +250,7 @@ abstract class CoreReaderFragment :
   private var currentTtsWebViewIndex = 0
   private val savingTabsMutex = Mutex()
   private var searchItemToOpen: SearchItemToOpen? = null
+  private var webViewUnavailableHandled = false
 
   @JvmField
   @Inject
@@ -516,7 +520,11 @@ abstract class CoreReaderFragment :
     donationDialogHandler?.setDonationDialogCallBack(this)
     val activity = requireActivity() as AppCompatActivity?
     activity?.let {
-      WebView(it).destroy() // Workaround for buggy webViews see #710
+      // Skip the workaround on devices without a usable WebView, otherwise
+      // instantiating the WebView would crash the app. See #710 for the workaround.
+      if (WebViewAvailability.isWebViewAvailable(it)) {
+        WebView(it).destroy() // Workaround for buggy webViews see #710
+      }
     }
     handleLocaleCheck()
     initHideBackToTopTimer()
@@ -880,6 +888,12 @@ abstract class CoreReaderFragment :
         return FragmentActivityExtensions.Super.ShouldNotCall
       }
 
+      // Let the alternative reader (e.g. the embedded Gecko session) navigate
+      // back in its own history first.
+      onAlternativeReaderBackPressed() -> {
+        return FragmentActivityExtensions.Super.ShouldNotCall
+      }
+
       readerScreenState.value.showTabSwitcher -> {
         selectTab(
           if (currentWebViewIndex < webViewList.size) {
@@ -1115,6 +1129,7 @@ abstract class CoreReaderFragment :
     libkiwixBook = null
     searchItemToOpen = null
     pendingIntent = null
+    closeAlternativeReader()
     try {
       coreReaderLifeCycleScope?.cancel()
       readerLifeCycleScope?.cancel()
@@ -1160,6 +1175,7 @@ abstract class CoreReaderFragment :
   }
 
   protected fun loadUrlWithCurrentWebview(url: String?) {
+    if (url != null && loadUrlInAlternativeReader(url)) return
     getCurrentWebView()?.let { loadUrl(url, it) }
   }
 
@@ -1181,14 +1197,18 @@ abstract class CoreReaderFragment :
   private fun initalizeWebView(url: String, shouldLoadUrl: Boolean = true): KiwixWebView? {
     if (isAdded) {
       val attrs = activity?.getAttributes(R.xml.webview)
-      val webView: KiwixWebView? = try {
+      val webView: KiwixWebView? = runCatching {
         createWebView(attrs)
-      } catch (illegalArgumentException: IllegalArgumentException) {
-        Log.e(
-          TAG_KIWIX,
-          "Could not initialize webView. Original exception = $illegalArgumentException"
-        )
-        null
+      }.onFailure {
+        // Also catches the AndroidRuntimeException thrown on devices that have
+        // no usable WebView, so the app degrades gracefully instead of crashing.
+        Log.e(TAG_KIWIX, "Could not initialize webView. Original exception = $it")
+      }.getOrNull()
+      // Restoring multiple tabs creates multiple webViews; handle the missing
+      // WebView only once instead of once per failed tab.
+      if (webView == null && !webViewUnavailableHandled && isWebViewNotAvailable()) {
+        webViewUnavailableHandled = true
+        showWebViewNotAvailableDialog()
       }
       webView?.let {
         if (shouldLoadUrl) {
@@ -1300,6 +1320,7 @@ abstract class CoreReaderFragment :
   }
 
   protected fun exitBook(shouldCloseZimBook: Boolean = true) {
+    setAlternativeReaderView(null)
     showNoBookOpenViews()
     readerScreenState.update {
       copy(
@@ -1392,6 +1413,17 @@ abstract class CoreReaderFragment :
       // Pass this function to saveTabStates so that after saving
       // the tab state in the database, it will open the search fragment.
       openSearch("", isOpenedFromTabView = isInTabSwitcher, false)
+    }
+  }
+
+  override fun onSearchInContentMenuClicked() {
+    saveTabStates {
+      lifecycleScope.launch {
+        // Remember the page-content mode so the search screen opens directly
+        // in full text search over the pages of the book.
+        kiwixDataStore?.setSearchMode(SearchMode.PAGE_CONTENT.name)
+        openSearch("", isOpenedFromTabView = isInTabSwitcher, false)
+      }
     }
   }
 
@@ -1592,6 +1624,109 @@ abstract class CoreReaderFragment :
     }
   }
 
+  protected fun isWebViewNotAvailable(): Boolean =
+    context?.let { !WebViewAvailability.isWebViewAvailable(it) } == true
+
+  /**
+   * Shows the given view (e.g. the embedded GeckoView in builds bundling the
+   * Gecko engine) as the reader content in place of the WebView based tabs.
+   * Passing null returns the reader to the WebView based UI.
+   */
+  protected fun setAlternativeReaderView(view: View?) {
+    if (view != null) {
+      hideNoBookOpenViews()
+    }
+    readerScreenState.update {
+      copy(
+        alternativeReaderView = view,
+        // The bottom toolbar (previous/next page, table of contents) operates
+        // on the WebView based tabs, so it is hidden for alternative readers.
+        shouldShowBottomAppBar = if (view != null) false else shouldShowBottomAppBar
+      )
+    }
+  }
+
+  protected fun isAlternativeReaderActive(): Boolean =
+    readerScreenState.value.alternativeReaderView != null
+
+  /**
+   * Gives the alternative reader (if any) a chance to consume a back press,
+   * e.g. to navigate back in the Gecko session history.
+   *
+   * @return true when the back press was consumed.
+   */
+  protected open fun onAlternativeReaderBackPressed(): Boolean = false
+
+  /**
+   * Gives the alternative reader (if any) a chance to load the given
+   * (https://kiwix.app/...) URL instead of the WebView based tabs.
+   *
+   * @return true when the URL will be shown by the alternative reader.
+   */
+  protected open fun loadUrlInAlternativeReader(url: String): Boolean = false
+
+  /**
+   * Releases the resources of the alternative reader (if any). Called when the
+   * reader views are destroyed.
+   */
+  protected open fun closeAlternativeReader() {
+    // No alternative reader in the default reader.
+  }
+
+  /**
+   * Whether the currently opening book should be shown in an alternative
+   * renderer instead of the WebView based reader. Subclasses that provide an
+   * alternative renderer (e.g. the Kiwix app with the bundled Gecko engine)
+   * override this together with [openBookInAlternativeRenderer].
+   */
+  protected open suspend fun shouldOpenInAlternativeRenderer(): Boolean = false
+
+  protected open fun openBookInAlternativeRenderer() {
+    // No alternative renderer in the default reader.
+  }
+
+  /**
+   * Shown when the device has no usable WebView (not installed or disabled).
+   * Instead of crashing, we offer to read the currently opened ZIM file in an
+   * external browser via a localhost kiwix server, so any installed browser
+   * engine (e.g. Gecko based browsers such as Firefox) can render the content.
+   */
+  protected open fun showWebViewNotAvailableDialog() {
+    alertDialogShower?.show(
+      KiwixDialog.WebViewNotAvailable,
+      ::openCurrentBookInExternalBrowser,
+      {}
+    )
+  }
+
+  /**
+   * Starts a localhost kiwix server serving the currently opened ZIM file and
+   * returns its URL, or null (after showing a toast) if it could not start.
+   */
+  protected suspend fun startLocalContentServer(): String? {
+    val zimReaderSource = zimReaderContainer?.zimReaderSource ?: return null
+    val url = ExternalBrowserContentServer.start(zimReaderSource)
+    if (url == null) {
+      activity.toast(string.failed_to_open_in_browser)
+    }
+    return url
+  }
+
+  private fun openCurrentBookInExternalBrowser() {
+    lifecycleScope.launch {
+      val url = startLocalContentServer() ?: return@launch
+      try {
+        startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+      } catch (activityNotFoundException: ActivityNotFoundException) {
+        Log.e(
+          TAG_KIWIX,
+          "No browser found to open $url. Original exception = $activityNotFoundException"
+        )
+        activity.toast(string.no_browser_installed)
+      }
+    }
+  }
+
   override fun showSaveOrOpenUnsupportedFilesDialog(url: String, documentType: String?) {
     runSafelyInCoreReaderLifecycleScope {
       unsupportedMimeTypeHandler?.showSaveOrOpenUnsupportedFilesDialog(
@@ -1666,8 +1801,14 @@ abstract class CoreReaderFragment :
       zimReaderContainer.setZimReaderSource(zimReaderSource, showSearchSuggestionsSpellChecked)
 
       zimReaderContainer.zimFileReader?.let { zimFileReader ->
-        openMainPage()
-        readerMenuState?.onFileOpened(urlIsValid())
+        if (shouldOpenInAlternativeRenderer()) {
+          // Instead of loading the main page in a WebView based tab, show the
+          // book in an alternative renderer (e.g. the bundled Gecko engine).
+          openBookInAlternativeRenderer()
+        } else {
+          openMainPage()
+          readerMenuState?.onFileOpened(urlIsValid())
+        }
         setUpBookmarks(zimFileReader)
       } ?: run {
         // If the ZIM file is not opened properly (especially for ZIM chunks), exit the book to
@@ -1964,7 +2105,7 @@ abstract class CoreReaderFragment :
    * resulting URL is then loaded in the current web view.
    */
   private fun openSearchItem(item: SearchItemToOpen) {
-    if (item.shouldOpenInNewTab) {
+    if (item.shouldOpenInNewTab && !isAlternativeReaderActive()) {
       createNewTab()
     }
     item.pageUrl?.let(::loadUrlWithCurrentWebview) ?: run {
