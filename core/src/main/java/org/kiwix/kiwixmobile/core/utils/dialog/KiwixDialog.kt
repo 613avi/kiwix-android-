@@ -127,6 +127,13 @@ sealed class KiwixDialog(
     null
   )
 
+  object WebViewNotAvailable : KiwixDialog(
+    R.string.webview_not_available_title,
+    R.string.webview_not_available_message,
+    R.string.open_in_browser,
+    android.R.string.cancel
+  )
+
   object ReadPermissionRequired : KiwixDialog(
     R.string.storage_permission_denied,
     R.string.grant_read_storage_permission,

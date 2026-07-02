@@ -332,6 +332,13 @@
   <string name="percentage">%d%%</string>
   <string name="pref_text_zoom_title">Text Zoom</string>
   <string name="search_open_in_new_tab">Open in new tab</string>
+  <string name="search_in_titles">Titles</string>
+  <string name="search_in_page_content">Page content</string>
+  <string name="webview_not_available_title">WebView is not available</string>
+  <string name="webview_not_available_message">This device does not have a working Android System WebView, which Kiwix uses to display pages. You can read the current book in your browser instead (any browser engine, e.g. Gecko based browsers such as Firefox, will work), or install/enable Android System WebView and restart Kiwix.</string>
+  <string name="open_in_browser">Open in browser</string>
+  <string name="no_browser_installed">No browser installed on this device.</string>
+  <string name="failed_to_open_in_browser">Could not start the local server to open the book in a browser.</string>
   <string name="reader">Reader</string>
   <string name="no_open_book">No open book</string>
   <string name="open_library">Open library</string>

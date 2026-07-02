@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.kiwix.kiwixmobile.core.search.SearchListItem
 import org.kiwix.kiwixmobile.core.search.SearchListItem.RecentSearchListItem
 import org.kiwix.kiwixmobile.core.search.viewmodel.SearchOrigin.FromWebView
+import org.kiwix.libzim.Entry
 import org.kiwix.sharedFunctions.MainDispatcherRule
 
 internal class SearchStateTest {
@@ -66,11 +67,35 @@ internal class SearchStateTest {
       assertThat(
         SearchState(
           searchTerm,
-          SearchResultsWithTerm("", suggestionSearchWrapper, mockk()),
+          SearchResultsWithTerm("", ZimSearchResultSet.Title(suggestionSearchWrapper), mockk()),
           emptyList(),
           FromWebView
         ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
       ).isEqualTo(listOf(SearchListItem.ZimSearchResultListItem(searchTerm, "")))
+    }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  internal fun `visibleResults use full text search results when in page content mode`() =
+    runTest {
+      val searchTerm = "notEmpty"
+      val pageUrl = "A/page"
+      val searchWrapper: SearchWrapper = mockk()
+      val searchIteratorWrapper: SearchIteratorWrapper = mockk()
+      val entry: Entry = mockk()
+      every { searchIteratorWrapper.hasNext() } returnsMany listOf(true, false)
+      every { searchIteratorWrapper.next() } returns entry
+      every { entry.title } returns searchTerm
+      every { entry.path } returns pageUrl
+      every { searchWrapper.getResults(0, 20) } returns searchIteratorWrapper
+      assertThat(
+        SearchState(
+          searchTerm,
+          SearchResultsWithTerm("", ZimSearchResultSet.PageContent(searchWrapper), mockk()),
+          emptyList(),
+          FromWebView
+        ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
+      ).isEqualTo(listOf(SearchListItem.ZimSearchResultListItem(searchTerm, pageUrl)))
     }
 
   @OptIn(ExperimentalCoroutinesApi::class)
@@ -82,6 +107,21 @@ internal class SearchStateTest {
         SearchState(
           "",
           SearchResultsWithTerm("", null, mockk()),
+          results,
+          FromWebView
+        ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
+      ).isEqualTo(results)
+    }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  internal fun `visibleResults use recentResults when zimSearchResultSet is null`() =
+    runTest {
+      val results = listOf(RecentSearchListItem("", ""))
+      assertThat(
+        SearchState(
+          "notEmpty",
+          SearchResultsWithTerm("notEmpty", null, mockk()),
           results,
           FromWebView
         ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
@@ -130,7 +170,11 @@ internal class SearchStateTest {
       every { suggestionSearchWrapper.getResults(any(), any()) } returns searchIteratorWrapper
 
       val searchResultsWithTerm =
-        SearchResultsWithTerm(searchTerm, suggestionSearchWrapper, mockk())
+        SearchResultsWithTerm(
+          searchTerm,
+          ZimSearchResultSet.Title(suggestionSearchWrapper),
+          mockk()
+        )
       val searchState = SearchState(searchTerm, searchResultsWithTerm, emptyList(), FromWebView)
       var list: List<SearchListItem>? = emptyList()
       var list1: List<SearchListItem>? = emptyList()

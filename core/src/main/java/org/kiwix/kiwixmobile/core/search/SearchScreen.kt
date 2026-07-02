@@ -23,7 +23,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -44,6 +46,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +73,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow.Companion.Ellipsis
 import org.kiwix.kiwixmobile.core.R
 import org.kiwix.kiwixmobile.core.extensions.hideKeyboardOnLazyColumnScroll
+import org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode
 import org.kiwix.kiwixmobile.core.search.viewmodel.SearchScreenUiState
 import org.kiwix.kiwixmobile.core.search.viewmodel.SearchViewModel
 import org.kiwix.kiwixmobile.core.ui.components.ContentLoadingProgressBar
@@ -97,6 +101,8 @@ const val OPEN_ITEM_IN_NEW_TAB_ICON_TESTING_TAG = "openItemInNewTagIconTestingTa
 const val LOADING_ITEMS_BEFORE = 3
 
 const val VOICE_SEARCH_TESTING_TAG = "voiceSearchTestingTag"
+const val SEARCH_IN_TITLE_CHIP_TESTING_TAG = "searchInTitleChipTestingTag"
+const val SEARCH_IN_PAGE_CONTENT_CHIP_TESTING_TAG = "searchInPageContentChipTestingTag"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("ComposableLambdaParameterNaming")
@@ -146,14 +152,58 @@ private fun SearchScreenContent(
   lazyListState: LazyListState
 ) {
   val progressBarTrackColor = MaterialTheme.colorScheme.background
-  Box(
+  Column(
     modifier = Modifier
       .fillMaxSize()
       .padding(
         top = innerPadding.calculateTopPadding(),
         start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
         end = innerPadding.calculateEndPadding(LocalLayoutDirection.current)
-      ),
+      )
+  ) {
+    SearchModeChips(
+      searchMode = state.searchMode,
+      onSearchModeChanged = { searchViewModel.onSearchModeChanged(it) }
+    )
+    SearchResults(state, searchViewModel, lazyListState, progressBarTrackColor)
+  }
+}
+
+@Composable
+private fun SearchModeChips(
+  searchMode: SearchMode,
+  onSearchModeChanged: (SearchMode) -> Unit
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = EIGHT_DP),
+    horizontalArrangement = Arrangement.spacedBy(EIGHT_DP)
+  ) {
+    FilterChip(
+      selected = searchMode == SearchMode.TITLE,
+      onClick = { onSearchModeChanged(SearchMode.TITLE) },
+      label = { Text(stringResource(R.string.search_in_titles)) },
+      modifier = Modifier.testTag(SEARCH_IN_TITLE_CHIP_TESTING_TAG)
+    )
+    FilterChip(
+      selected = searchMode == SearchMode.PAGE_CONTENT,
+      onClick = { onSearchModeChanged(SearchMode.PAGE_CONTENT) },
+      label = { Text(stringResource(R.string.search_in_page_content)) },
+      modifier = Modifier.testTag(SEARCH_IN_PAGE_CONTENT_CHIP_TESTING_TAG)
+    )
+  }
+}
+
+@Composable
+private fun SearchResults(
+  state: SearchScreenUiState,
+  searchViewModel: SearchViewModel,
+  lazyListState: LazyListState,
+  progressBarTrackColor: Color
+) {
+  Box(
+    modifier = Modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
     when {

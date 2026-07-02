@@ -67,7 +67,6 @@ import org.kiwix.kiwixmobile.core.search.viewmodel.effects.StartSpeechInput
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
 import org.kiwix.kiwixmobile.core.utils.effects.CloseKeyboard
-import org.kiwix.libzim.SuggestionSearch
 import javax.inject.Inject
 
 const val DEBOUNCE_DELAY = 150L
@@ -89,6 +88,7 @@ class SearchViewModel @Inject constructor(
 
   val actions = MutableSharedFlow<Action>(extraBufferCapacity = Int.MAX_VALUE)
   private val filter = MutableStateFlow("")
+  private val searchMode = MutableStateFlow(SearchMode.TITLE)
   private val searchOrigin = MutableStateFlow(FromWebView)
   private lateinit var alertDialogShower: AlertDialogShower
   private val debouncedSearchQuery = MutableStateFlow("")
@@ -189,14 +189,19 @@ class SearchViewModel @Inject constructor(
   }
 
   private fun searchResults() =
-    filter.asStateFlow()
-      .mapLatest {
-        SearchResultsWithTerm(
-          it,
-          searchResultGenerator.generateSearchResults(it, zimReaderContainer.zimFileReader),
-          searchMutex
-        )
-      }
+    combine(filter.asStateFlow(), searchMode.asStateFlow()) { searchTerm, searchMode ->
+      searchTerm to searchMode
+    }.mapLatest { (searchTerm, searchMode) ->
+      SearchResultsWithTerm(
+        searchTerm,
+        searchResultGenerator.generateSearchResults(
+          searchTerm,
+          searchMode,
+          zimReaderContainer.zimFileReader
+        ),
+        searchMutex
+      )
+    }
 
   @Suppress("CyclomaticComplexMethod")
   private suspend fun actionMapper() {
@@ -320,6 +325,12 @@ class SearchViewModel @Inject constructor(
     updateSearchQuery("")
   }
 
+  fun onSearchModeChanged(mode: SearchMode) {
+    if (searchMode.value == mode) return
+    updateUiState { it.copy(searchMode = mode) }
+    searchMode.value = mode
+  }
+
   fun onSearchValueChanged(searchText: String) {
     updateSearchQuery(searchText)
   }
@@ -350,7 +361,7 @@ class SearchViewModel @Inject constructor(
 
 data class SearchResultsWithTerm(
   val searchTerm: String,
-  val suggestionSearch: SuggestionSearch?,
+  val zimSearchResultSet: ZimSearchResultSet?,
   val searchMutex: Mutex?
 )
 
@@ -360,6 +371,7 @@ data class SearchScreenUiState(
   val isLoading: Boolean = false,
   val isLoadingMore: Boolean = false,
   val spellingCorrectionSuggestions: List<String> = emptyList(),
+  val searchMode: SearchMode = SearchMode.TITLE,
   val searchOrigin: SearchOrigin = FromWebView,
   val searchState: SearchState = SearchState(
     "",

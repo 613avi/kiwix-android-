@@ -23,6 +23,7 @@ import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -96,7 +97,7 @@ internal class SearchViewModelTest {
       zimFileReader.getSuggestedSpelledWords(any(), any())
     } returns emptyList()
     coEvery {
-      searchResultGenerator.generateSearchResults(any(), zimFileReader)
+      searchResultGenerator.generateSearchResults(any(), any(), zimFileReader)
     } returns null
     every { zimReaderContainer.id } returns "id"
     every { recentSearchRoomDao.recentSearches("id") } returns recentsFromDb
@@ -163,8 +164,8 @@ internal class SearchViewModelTest {
       timeout: Long
     ) {
       coEvery {
-        searchResultGenerator.generateSearchResults(searchTerm, zimFileReader)
-      } returns suggestionSearch
+        searchResultGenerator.generateSearchResults(searchTerm, any(), zimFileReader)
+      } returns ZimSearchResultSet.Title(suggestionSearch)
       viewModel.onSearchValueChanged(searchTerm)
       recentsFromDb.tryEmit(emptyList())
       viewModel.actions.tryEmit(ScreenWasStartedFrom(FromWebView))
@@ -254,6 +255,23 @@ internal class SearchViewModelTest {
       assertThat(viewModel.uiState.value.searchText).isEqualTo(suggestion)
     }
 
+    @Test
+    fun onSearchModeChanged_whenCalled_updatesSearchModeAndRegeneratesResults() = runTest {
+      val searchTerm = "searchTerm"
+      viewModel.onSearchValueChanged(searchTerm)
+      advanceUntilIdle()
+      viewModel.onSearchModeChanged(SearchMode.PAGE_CONTENT)
+      advanceUntilIdle()
+      assertThat(viewModel.uiState.value.searchMode).isEqualTo(SearchMode.PAGE_CONTENT)
+      coVerify {
+        searchResultGenerator.generateSearchResults(
+          searchTerm,
+          SearchMode.PAGE_CONTENT,
+          zimFileReader
+        )
+      }
+    }
+
     private fun emissionOf(
       searchTerm: String,
       suggestionSearch: SuggestionSearch,
@@ -261,8 +279,8 @@ internal class SearchViewModelTest {
       searchOrigin: SearchOrigin
     ) {
       coEvery {
-        searchResultGenerator.generateSearchResults(searchTerm, zimFileReader)
-      } returns suggestionSearch
+        searchResultGenerator.generateSearchResults(searchTerm, any(), zimFileReader)
+      } returns ZimSearchResultSet.Title(suggestionSearch)
       viewModel.actions.tryEmit(Filter(searchTerm))
       recentsFromDb.tryEmit(databaseResults)
       viewModel.actions.tryEmit(ScreenWasStartedFrom(searchOrigin))

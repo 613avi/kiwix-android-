@@ -20,6 +20,7 @@ package org.kiwix.kiwixmobile.core.main.reader
 import android.Manifest
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -177,6 +178,7 @@ import org.kiwix.kiwixmobile.core.utils.StyleUtils.getAttributes
 import org.kiwix.kiwixmobile.core.utils.TAG_FILE_SEARCHED
 import org.kiwix.kiwixmobile.core.utils.TAG_FILE_SEARCHED_NEW_TAB
 import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
+import org.kiwix.kiwixmobile.core.utils.WebViewAvailability
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
@@ -516,7 +518,11 @@ abstract class CoreReaderFragment :
     donationDialogHandler?.setDonationDialogCallBack(this)
     val activity = requireActivity() as AppCompatActivity?
     activity?.let {
-      WebView(it).destroy() // Workaround for buggy webViews see #710
+      // Skip the workaround on devices without a usable WebView, otherwise
+      // instantiating the WebView would crash the app. See #710 for the workaround.
+      if (WebViewAvailability.isWebViewAvailable(it)) {
+        WebView(it).destroy() // Workaround for buggy webViews see #710
+      }
     }
     handleLocaleCheck()
     initHideBackToTopTimer()
@@ -1181,14 +1187,15 @@ abstract class CoreReaderFragment :
   private fun initalizeWebView(url: String, shouldLoadUrl: Boolean = true): KiwixWebView? {
     if (isAdded) {
       val attrs = activity?.getAttributes(R.xml.webview)
-      val webView: KiwixWebView? = try {
+      val webView: KiwixWebView? = runCatching {
         createWebView(attrs)
-      } catch (illegalArgumentException: IllegalArgumentException) {
-        Log.e(
-          TAG_KIWIX,
-          "Could not initialize webView. Original exception = $illegalArgumentException"
-        )
-        null
+      }.onFailure {
+        // Also catches the AndroidRuntimeException thrown on devices that have
+        // no usable WebView, so the app degrades gracefully instead of crashing.
+        Log.e(TAG_KIWIX, "Could not initialize webView. Original exception = $it")
+      }.getOrNull()
+      if (webView == null && isWebViewNotAvailable()) {
+        showWebViewNotAvailableDialog()
       }
       webView?.let {
         if (shouldLoadUrl) {
@@ -1589,6 +1596,43 @@ abstract class CoreReaderFragment :
   override fun openExternalUrl(intent: Intent) {
     runSafelyInCoreReaderLifecycleScope {
       externalLinkOpener?.openExternalUrl(intent, lifecycleScope = this)
+    }
+  }
+
+  private fun isWebViewNotAvailable(): Boolean =
+    context?.let { !WebViewAvailability.isWebViewAvailable(it) } == true
+
+  /**
+   * Shown when the device has no usable WebView (not installed or disabled).
+   * Instead of crashing, we offer to read the currently opened ZIM file in an
+   * external browser via a localhost kiwix server, so any installed browser
+   * engine (e.g. Gecko based browsers such as Firefox) can render the content.
+   */
+  private fun showWebViewNotAvailableDialog() {
+    alertDialogShower?.show(
+      KiwixDialog.WebViewNotAvailable,
+      ::openCurrentBookInExternalBrowser,
+      {}
+    )
+  }
+
+  private fun openCurrentBookInExternalBrowser() {
+    val zimReaderSource = zimReaderContainer?.zimReaderSource ?: return
+    lifecycleScope.launch {
+      val url = ExternalBrowserContentServer.start(zimReaderSource)
+      if (url == null) {
+        activity.toast(string.failed_to_open_in_browser)
+        return@launch
+      }
+      try {
+        startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+      } catch (activityNotFoundException: ActivityNotFoundException) {
+        Log.e(
+          TAG_KIWIX,
+          "No browser found to open $url. Original exception = $activityNotFoundException"
+        )
+        activity.toast(string.no_browser_installed)
+      }
     }
   }
 

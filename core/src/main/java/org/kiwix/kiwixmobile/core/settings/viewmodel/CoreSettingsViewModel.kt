@@ -60,6 +60,7 @@ import org.kiwix.kiwixmobile.core.utils.EXTERNAL_SELECT_POSITION
 import org.kiwix.kiwixmobile.core.utils.INTERNAL_SELECT_POSITION
 import org.kiwix.kiwixmobile.core.utils.KiwixPermissionChecker
 import org.kiwix.kiwixmobile.core.utils.StorageUtils.isExternalStorageWritable
+import org.kiwix.kiwixmobile.core.utils.WebViewAvailability
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore.Companion.DEFAULT_ZOOM
@@ -401,6 +402,12 @@ abstract class CoreSettingsViewModel(
 
   @SuppressLint("SetJavaScriptEnabled")
   fun openCredits() {
+    // The credits are rendered inside a WebView; on devices without a usable
+    // WebView show a toast instead of crashing.
+    if (!WebViewAvailability.isWebViewAvailable(context)) {
+      context.toast(R.string.webview_not_available_title, Toast.LENGTH_SHORT)
+      return
+    }
     alertDialogShower.show(
       OpenCredits {
         AndroidView(factory = {
