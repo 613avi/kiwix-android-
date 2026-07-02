@@ -128,11 +128,14 @@ class KiwixDataStore @Inject constructor(
 
   /**
    * Whether pages should be rendered with the bundled Gecko engine instead of
-   * the Android WebView. Only has an effect in builds that include GeckoView.
+   * the Android WebView. Only has an effect in builds that include GeckoView,
+   * where the app sets [preferGeckoRendererDefault] to true on startup so that
+   * Gecko is the default renderer and the settings switch opts back into the
+   * WebView.
    */
   val preferGeckoRenderer: Flow<Boolean> =
     context.kiwixDataStore.data.map { prefs ->
-      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] ?: false
+      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] ?: preferGeckoRendererDefault
     }
 
   suspend fun setPreferGeckoRenderer(preferGeckoRenderer: Boolean) {
@@ -615,6 +618,14 @@ class KiwixDataStore @Inject constructor(
   }
 
   companion object {
+    /**
+     * The default renderer when the user has not chosen one. Set to true by
+     * the app on startup in builds that bundle the Gecko engine, so those
+     * builds render with Gecko out of the box.
+     */
+    @JvmStatic
+    var preferGeckoRendererDefault = false
+
     // Prefs
     const val PREF_LANG = "pref_language_chooser"
     const val PREF_STORAGE = "pref_select_folder"

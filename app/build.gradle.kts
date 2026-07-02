@@ -86,6 +86,8 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("boolean", "WITH_GECKO", withGecko.toString())
     if (withGecko) {
+      // Makes the installed variant recognisable in Settings -> version.
+      versionNameSuffix = "-gecko"
       // GeckoView requires at least Android 8 (API 26); the regular build keeps
       // supporting Android 7.1 (API 25).
       minSdk = 26
