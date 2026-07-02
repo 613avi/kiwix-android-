@@ -90,10 +90,20 @@ android {
       // supporting Android 7.1 (API 25).
       minSdk = 26
       ndk {
-        // GeckoView ships native libraries for every ABI (~70 MB each), so the
-        // Gecko flavoured APK is restricted to ARM devices to keep it installable.
-        abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        // GeckoView ships huge native libraries per ABI, so the Gecko flavoured
+        // APK is restricted to ARM devices to keep it installable. A single ABI
+        // can be selected with e.g. -PgeckoAbi=arm64-v8a for a smaller APK.
+        abiFilters += (findProperty("geckoAbi") as String?)?.split(",")
+          ?: listOf("arm64-v8a", "armeabi-v7a")
       }
+    }
+  }
+  if (withGecko) {
+    packaging {
+      // Compress the (very large) Gecko native libraries inside the APK. They
+      // are extracted at install time, trading disk space for a much smaller
+      // APK download - Gecko builds are distributed by direct download.
+      jniLibs.useLegacyPackaging = true
     }
   }
   if (withGecko) {
