@@ -10,6 +10,10 @@ on:
   push:
     tags:
       - 'gecko-build-*'
+    branches:
+      - 'claude/**'
+    paths:
+      - '.github/gecko-release-trigger'
 
 permissions:
   contents: write
