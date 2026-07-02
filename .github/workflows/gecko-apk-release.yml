@@ -35,6 +35,14 @@ jobs:
           ./gradlew :app:assembleDebug
           cp app/build/outputs/apk/debug/app-debug.apk kiwix-debug.apk
 
+      - name: Build minified standalone APKs (full text search, no Gecko, smaller)
+        env:
+          APK_BUILD: 'true'
+        run: |
+          ./gradlew :app:assembleStandalone
+          cp app/build/outputs/apk/standalone/app-armeabi-v7a-standalone.apk kiwix-standalone-armeabi-v7a.apk
+          cp app/build/outputs/apk/standalone/app-arm64-v8a-standalone.apk kiwix-standalone-arm64-v8a.apk
+
       - name: Build Gecko debug APK (armeabi-v7a)
         run: |
           ./gradlew :app:assembleDebug -PwithGecko -PgeckoAbi=armeabi-v7a
@@ -53,8 +61,12 @@ jobs:
           body: |
             Kiwix Android with full text (page content) search, in all variants:
 
-            - `kiwix-debug.apk` - regular build (all ABIs, WebView based reader,
-              full text search included, no Gecko engine).
+            - `kiwix-standalone-armeabi-v7a.apk` / `kiwix-standalone-arm64-v8a.apk` -
+              regular build, minified and per ABI so it is much smaller
+              (WebView based reader, full text search included, no Gecko
+              engine). Release build signed with the development key.
+            - `kiwix-debug.apk` - regular debug build (all ABIs, WebView based
+              reader, full text search included, no Gecko engine).
             - `kiwix-gecko-armeabi-v7a-debug.apk` - 32 bit ARM build with the
               GeckoView (Firefox) engine embedded inside the reader, for
               devices without a WebView and without any browser.

@@ -1,1 +1,1 @@
-release 3: gecko is the default renderer in gecko builds, -gecko version suffix
+release 4: add minified standalone (no gecko) per-ABI APKs
