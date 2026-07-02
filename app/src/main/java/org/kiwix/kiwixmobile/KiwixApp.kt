@@ -19,12 +19,21 @@
 package org.kiwix.kiwixmobile
 
 import org.kiwix.kiwixmobile.core.CoreApp
+import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.di.components.DaggerKiwixComponent
 import org.kiwix.kiwixmobile.di.components.KiwixComponent
+import org.kiwix.kiwixmobile.gecko.GeckoSupport
 
 class KiwixApp : CoreApp() {
   @Suppress("ConvertLambdaToReference") // we want the entire call to be lazy
   val kiwixComponent: KiwixComponent by lazy {
     DaggerKiwixComponent.builder().coreComponent(coreComponent).build()
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+    // In builds that bundle the Gecko engine, render with Gecko by default;
+    // the settings switch lets the user opt back into the Android WebView.
+    KiwixDataStore.preferGeckoRendererDefault = GeckoSupport.IS_GECKO_INCLUDED
   }
 }
