@@ -249,6 +249,7 @@ abstract class CoreReaderFragment :
   private var currentTtsWebViewIndex = 0
   private val savingTabsMutex = Mutex()
   private var searchItemToOpen: SearchItemToOpen? = null
+  private var webViewUnavailableHandled = false
 
   @JvmField
   @Inject
@@ -1194,7 +1195,10 @@ abstract class CoreReaderFragment :
         // no usable WebView, so the app degrades gracefully instead of crashing.
         Log.e(TAG_KIWIX, "Could not initialize webView. Original exception = $it")
       }.getOrNull()
-      if (webView == null && isWebViewNotAvailable()) {
+      // Restoring multiple tabs creates multiple webViews; handle the missing
+      // WebView only once instead of once per failed tab.
+      if (webView == null && !webViewUnavailableHandled && isWebViewNotAvailable()) {
+        webViewUnavailableHandled = true
         showWebViewNotAvailableDialog()
       }
       webView?.let {
@@ -1599,8 +1603,20 @@ abstract class CoreReaderFragment :
     }
   }
 
-  private fun isWebViewNotAvailable(): Boolean =
+  protected fun isWebViewNotAvailable(): Boolean =
     context?.let { !WebViewAvailability.isWebViewAvailable(it) } == true
+
+  /**
+   * Whether the currently opening book should be shown in an alternative
+   * renderer instead of the WebView based reader. Subclasses that provide an
+   * alternative renderer (e.g. the Kiwix app with the bundled Gecko engine)
+   * override this together with [openBookInAlternativeRenderer].
+   */
+  protected open suspend fun shouldOpenInAlternativeRenderer(): Boolean = false
+
+  protected open fun openBookInAlternativeRenderer() {
+    // No alternative renderer in the default reader.
+  }
 
   /**
    * Shown when the device has no usable WebView (not installed or disabled).
@@ -1608,7 +1624,7 @@ abstract class CoreReaderFragment :
    * external browser via a localhost kiwix server, so any installed browser
    * engine (e.g. Gecko based browsers such as Firefox) can render the content.
    */
-  private fun showWebViewNotAvailableDialog() {
+  protected open fun showWebViewNotAvailableDialog() {
     alertDialogShower?.show(
       KiwixDialog.WebViewNotAvailable,
       ::openCurrentBookInExternalBrowser,
@@ -1616,14 +1632,22 @@ abstract class CoreReaderFragment :
     )
   }
 
+  /**
+   * Starts a localhost kiwix server serving the currently opened ZIM file and
+   * returns its URL, or null (after showing a toast) if it could not start.
+   */
+  protected suspend fun startLocalContentServer(): String? {
+    val zimReaderSource = zimReaderContainer?.zimReaderSource ?: return null
+    val url = ExternalBrowserContentServer.start(zimReaderSource)
+    if (url == null) {
+      activity.toast(string.failed_to_open_in_browser)
+    }
+    return url
+  }
+
   private fun openCurrentBookInExternalBrowser() {
-    val zimReaderSource = zimReaderContainer?.zimReaderSource ?: return
     lifecycleScope.launch {
-      val url = ExternalBrowserContentServer.start(zimReaderSource)
-      if (url == null) {
-        activity.toast(string.failed_to_open_in_browser)
-        return@launch
-      }
+      val url = startLocalContentServer() ?: return@launch
       try {
         startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
       } catch (activityNotFoundException: ActivityNotFoundException) {
@@ -1710,8 +1734,14 @@ abstract class CoreReaderFragment :
       zimReaderContainer.setZimReaderSource(zimReaderSource, showSearchSuggestionsSpellChecked)
 
       zimReaderContainer.zimFileReader?.let { zimFileReader ->
-        openMainPage()
-        readerMenuState?.onFileOpened(urlIsValid())
+        if (shouldOpenInAlternativeRenderer()) {
+          // Instead of loading the main page in a WebView based tab, show the
+          // book in an alternative renderer (e.g. the bundled Gecko engine).
+          openBookInAlternativeRenderer()
+        } else {
+          openMainPage()
+          readerMenuState?.onFileOpened(urlIsValid())
+        }
         setUpBookmarks(zimFileReader)
       } ?: run {
         // If the ZIM file is not opened properly (especially for ZIM chunks), exit the book to

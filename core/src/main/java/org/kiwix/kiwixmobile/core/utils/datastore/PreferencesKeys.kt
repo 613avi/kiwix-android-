@@ -32,6 +32,8 @@ object PreferencesKeys {
   val PREF_NEW_TAB_BACKGROUND = booleanPreferencesKey(KiwixDataStore.PREF_NEW_TAB_BACKGROUND)
   val PREF_EXTERNAL_LINK_POPUP =
     booleanPreferencesKey(KiwixDataStore.PREF_EXTERNAL_LINK_POPUP)
+  val PREF_PREFER_GECKO_RENDERER =
+    booleanPreferencesKey(KiwixDataStore.PREF_PREFER_GECKO_RENDERER)
   val PREF_WIFI_ONLY = booleanPreferencesKey(KiwixDataStore.PREF_WIFI_ONLY)
   val PREF_THEME = stringPreferencesKey(KiwixDataStore.PREF_THEME)
   val PREF_SHOW_INTRO = booleanPreferencesKey(KiwixDataStore.PREF_SHOW_INTRO)

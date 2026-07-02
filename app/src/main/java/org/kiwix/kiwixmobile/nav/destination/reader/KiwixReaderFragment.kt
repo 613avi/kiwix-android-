@@ -29,6 +29,7 @@ import androidx.navigation.NavOptions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import org.kiwix.kiwixmobile.cachedComponent
 import org.kiwix.kiwixmobile.core.R.string
 import org.kiwix.kiwixmobile.core.base.BaseActivity
@@ -56,6 +57,7 @@ import org.kiwix.kiwixmobile.core.reader.ZimReaderSource.Companion.fromDatabaseV
 import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
 import org.kiwix.kiwixmobile.core.utils.files.FileUtils
 import org.kiwix.kiwixmobile.core.utils.files.Log
+import org.kiwix.kiwixmobile.gecko.GeckoSupport
 import org.kiwix.kiwixmobile.main.KiwixMainActivity
 import org.kiwix.kiwixmobile.ui.KiwixDestination
 import java.io.File
@@ -301,6 +303,34 @@ class KiwixReaderFragment : CoreReaderFragment() {
 
   override fun createNewTab() {
     newMainPageTab()
+  }
+
+  /**
+   * Open books with the bundled Gecko engine when the user prefers it in the
+   * settings, or when this device has no usable WebView. Only applies to
+   * builds that include GeckoView (built with the `withGecko` Gradle property).
+   */
+  override suspend fun shouldOpenInAlternativeRenderer(): Boolean =
+    GeckoSupport.isGeckoIncluded &&
+      (kiwixDataStore?.preferGeckoRenderer?.first() == true || isWebViewNotAvailable())
+
+  override fun openBookInAlternativeRenderer() {
+    lifecycleScope.launch {
+      val url = startLocalContentServer() ?: return@launch
+      if (!GeckoSupport.openInGeckoReader(requireActivity(), url)) {
+        activity.toast(string.failed_to_open_in_browser)
+      }
+    }
+  }
+
+  override fun showWebViewNotAvailableDialog() {
+    // With the bundled Gecko engine there is no need to ask the user to open
+    // an external browser: render the book with Gecko directly.
+    if (GeckoSupport.isGeckoIncluded) {
+      openBookInAlternativeRenderer()
+    } else {
+      super.showWebViewNotAvailableDialog()
+    }
   }
 
   override suspend fun invalidZimFileFound(onInvalidZimFileFound: () -> Unit) {

@@ -92,6 +92,7 @@ abstract class CoreSettingsViewModel(
     val shouldShowLanguageCategory: Boolean = false,
     val shouldShowStorageCategory: Boolean = false,
     val shouldShowExternalLinkPreference: Boolean = false,
+    val shouldShowGeckoRendererPreference: Boolean = false,
     val shouldShowPrefWifiOnlyPreference: Boolean = false,
     val versionInformation: String = "",
     val permissionItem: Pair<Boolean, String> = false to ""
@@ -142,6 +143,13 @@ abstract class CoreSettingsViewModel(
       scope = viewModelScope,
       started = SharingStarted.Eagerly,
       initialValue = true
+    )
+
+  val preferGeckoRenderer = kiwixDataStore.preferGeckoRenderer
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.Eagerly,
+      initialValue = false
     )
 
   val textZoom: StateFlow<Int> = kiwixDataStore.textZoom
@@ -205,6 +213,12 @@ abstract class CoreSettingsViewModel(
   fun setExternalLinkPopup(enabled: Boolean) {
     viewModelScope.launch {
       kiwixDataStore.setExternalLinkPopup(enabled)
+    }
+  }
+
+  fun setPreferGeckoRenderer(enabled: Boolean) {
+    viewModelScope.launch {
+      kiwixDataStore.setPreferGeckoRenderer(enabled)
     }
   }
 
