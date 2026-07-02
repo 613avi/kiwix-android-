@@ -22,6 +22,10 @@ import org.kiwix.libzim.Entry
 import org.kiwix.libzim.SearchIterator
 
 class SearchIteratorWrapper : SearchIterator() {
+  override fun remove() {
+    // Do nothing just to ignore the EmptyFunctionBlock detekt error.
+  }
+
   override fun hasNext(): Boolean = super.hasNext()
   override fun next(): Entry = super.next()
 }
