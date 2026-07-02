@@ -31,7 +31,6 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.kiwix.kiwixmobile.core.search.SearchListItem
 import org.kiwix.kiwixmobile.core.search.SearchListItem.RecentSearchListItem
 import org.kiwix.kiwixmobile.core.search.viewmodel.SearchOrigin.FromWebView
-import org.kiwix.libzim.Entry
 import org.kiwix.sharedFunctions.MainDispatcherRule
 
 internal class SearchStateTest {
@@ -82,7 +81,7 @@ internal class SearchStateTest {
       val pageUrl = "A/page"
       val searchWrapper: SearchWrapper = mockk()
       val searchIteratorWrapper: SearchIteratorWrapper = mockk()
-      val entry: Entry = mockk()
+      val entry: EntryWrapper = mockk()
       every { searchIteratorWrapper.hasNext() } returnsMany listOf(true, false)
       every { searchIteratorWrapper.next() } returns entry
       every { entry.title } returns searchTerm

@@ -18,13 +18,9 @@
 
 package org.kiwix.kiwixmobile.core.search.viewmodel
 
-import org.kiwix.libzim.SearchIterator
+import org.kiwix.libzim.Entry
 
-class SearchIteratorWrapper : SearchIterator() {
-  override fun remove() {
-    // Do nothing just to ignore the EmptyFunctionBlock detekt error.
-  }
-
-  override fun hasNext(): Boolean = super.hasNext()
-  override fun next(): EntryWrapper = super.next() as EntryWrapper
+class EntryWrapper : Entry() {
+  override fun getTitle(): String = super.getTitle()
+  override fun getPath(): String = super.getPath()
 }
