@@ -1,0 +1,50 @@
+name: Gecko APK Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      abi:
+        description: 'ABI to build (armeabi-v7a, arm64-v8a, or both comma separated)'
+        required: false
+        default: 'armeabi-v7a'
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: 17
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - name: Build Gecko debug APK
+        run: ./gradlew :app:assembleDebug -PwithGecko -PgeckoAbi=${{ inputs.abi || 'armeabi-v7a' }}
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk "kiwix-gecko-${{ inputs.abi || 'armeabi-v7a' }}-debug.apk"
+
+      - name: Create GitHub release with the APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gecko-build-${{ github.run_number }}
+          name: 'Kiwix with embedded Gecko engine (${{ inputs.abi || ''armeabi-v7a'' }}, debug build ${{ github.run_number }})'
+          body: |
+            Kiwix Android with the GeckoView (Firefox) engine embedded, for devices
+            without a WebView and without any browser.
+
+            - ABI: ${{ inputs.abi || 'armeabi-v7a' }}
+            - Requires Android 8 (API 26) or newer
+            - Debug build, built from ${{ github.ref_name }} (${{ github.sha }})
+          files: kiwix-gecko-*.apk
+          target_commitish: ${{ github.sha }}
