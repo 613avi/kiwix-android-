@@ -158,6 +158,7 @@ import org.kiwix.kiwixmobile.core.reader.ZimFileReader
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader.Companion.CONTENT_PREFIX
 import org.kiwix.kiwixmobile.core.reader.ZimReaderContainer
 import org.kiwix.kiwixmobile.core.reader.ZimReaderSource
+import org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.SearchItemToOpen
 import org.kiwix.kiwixmobile.core.ui.components.NavigationIcon
 import org.kiwix.kiwixmobile.core.ui.models.IconItem
@@ -887,6 +888,12 @@ abstract class CoreReaderFragment :
         return FragmentActivityExtensions.Super.ShouldNotCall
       }
 
+      // Let the alternative reader (e.g. the embedded Gecko session) navigate
+      // back in its own history first.
+      onAlternativeReaderBackPressed() -> {
+        return FragmentActivityExtensions.Super.ShouldNotCall
+      }
+
       readerScreenState.value.showTabSwitcher -> {
         selectTab(
           if (currentWebViewIndex < webViewList.size) {
@@ -1122,6 +1129,7 @@ abstract class CoreReaderFragment :
     libkiwixBook = null
     searchItemToOpen = null
     pendingIntent = null
+    closeAlternativeReader()
     try {
       coreReaderLifeCycleScope?.cancel()
       readerLifeCycleScope?.cancel()
@@ -1167,6 +1175,7 @@ abstract class CoreReaderFragment :
   }
 
   protected fun loadUrlWithCurrentWebview(url: String?) {
+    if (url != null && loadUrlInAlternativeReader(url)) return
     getCurrentWebView()?.let { loadUrl(url, it) }
   }
 
@@ -1311,6 +1320,7 @@ abstract class CoreReaderFragment :
   }
 
   protected fun exitBook(shouldCloseZimBook: Boolean = true) {
+    setAlternativeReaderView(null)
     showNoBookOpenViews()
     readerScreenState.update {
       copy(
@@ -1403,6 +1413,17 @@ abstract class CoreReaderFragment :
       // Pass this function to saveTabStates so that after saving
       // the tab state in the database, it will open the search fragment.
       openSearch("", isOpenedFromTabView = isInTabSwitcher, false)
+    }
+  }
+
+  override fun onSearchInContentMenuClicked() {
+    saveTabStates {
+      lifecycleScope.launch {
+        // Remember the page-content mode so the search screen opens directly
+        // in full text search over the pages of the book.
+        kiwixDataStore?.setSearchMode(SearchMode.PAGE_CONTENT.name)
+        openSearch("", isOpenedFromTabView = isInTabSwitcher, false)
+      }
     }
   }
 
@@ -1605,6 +1626,52 @@ abstract class CoreReaderFragment :
 
   protected fun isWebViewNotAvailable(): Boolean =
     context?.let { !WebViewAvailability.isWebViewAvailable(it) } == true
+
+  /**
+   * Shows the given view (e.g. the embedded GeckoView in builds bundling the
+   * Gecko engine) as the reader content in place of the WebView based tabs.
+   * Passing null returns the reader to the WebView based UI.
+   */
+  protected fun setAlternativeReaderView(view: View?) {
+    if (view != null) {
+      hideNoBookOpenViews()
+    }
+    readerScreenState.update {
+      copy(
+        alternativeReaderView = view,
+        // The bottom toolbar (previous/next page, table of contents) operates
+        // on the WebView based tabs, so it is hidden for alternative readers.
+        shouldShowBottomAppBar = if (view != null) false else shouldShowBottomAppBar
+      )
+    }
+  }
+
+  protected fun isAlternativeReaderActive(): Boolean =
+    readerScreenState.value.alternativeReaderView != null
+
+  /**
+   * Gives the alternative reader (if any) a chance to consume a back press,
+   * e.g. to navigate back in the Gecko session history.
+   *
+   * @return true when the back press was consumed.
+   */
+  protected open fun onAlternativeReaderBackPressed(): Boolean = false
+
+  /**
+   * Gives the alternative reader (if any) a chance to load the given
+   * (https://kiwix.app/...) URL instead of the WebView based tabs.
+   *
+   * @return true when the URL will be shown by the alternative reader.
+   */
+  protected open fun loadUrlInAlternativeReader(url: String): Boolean = false
+
+  /**
+   * Releases the resources of the alternative reader (if any). Called when the
+   * reader views are destroyed.
+   */
+  protected open fun closeAlternativeReader() {
+    // No alternative reader in the default reader.
+  }
 
   /**
    * Whether the currently opening book should be shown in an alternative
@@ -2038,7 +2105,7 @@ abstract class CoreReaderFragment :
    * resulting URL is then loaded in the current web view.
    */
   private fun openSearchItem(item: SearchItemToOpen) {
-    if (item.shouldOpenInNewTab) {
+    if (item.shouldOpenInNewTab && !isAlternativeReaderActive()) {
       createNewTab()
     }
     item.pageUrl?.let(::loadUrlWithCurrentWebview) ?: run {

@@ -322,13 +322,18 @@ private fun ReaderContentLayout(
         state.fullScreenItem.first -> ShowFullScreenView(state)
 
         else -> {
-          state.selectedWebView?.let { selectedWebView ->
-            KiwixWebViewWithAppBarScrolling(
-              selectedWebView,
-              topAppBarScrollBehavior,
-              bottomAppBarScrollBehavior,
-              shouldUpdateTopAppBarAndBottomAppBarOnScrolling
-            )
+          val alternativeReaderView = state.alternativeReaderView
+          if (alternativeReaderView != null) {
+            AlternativeReaderView(alternativeReaderView)
+          } else {
+            state.selectedWebView?.let { selectedWebView ->
+              KiwixWebViewWithAppBarScrolling(
+                selectedWebView,
+                topAppBarScrollBehavior,
+                bottomAppBarScrollBehavior,
+                shouldUpdateTopAppBarAndBottomAppBarOnScrolling
+              )
+            }
           }
           ShowProgressBarIfZIMFilePageIsLoading(state)
           Column(Modifier.align(Alignment.BottomCenter)) {
@@ -339,6 +344,29 @@ private fun ReaderContentLayout(
       }
     }
   }
+}
+
+/**
+ * Renders an alternative reader view (e.g. the embedded GeckoView) as the
+ * reader content, inside the app's chrome. The view is reparented into a
+ * plain container so it survives recompositions and navigation.
+ */
+@Composable
+private fun AlternativeReaderView(alternativeReaderView: View) {
+  AndroidView(
+    factory = { context -> FrameLayout(context) },
+    update = { container ->
+      if (alternativeReaderView.parent !== container) {
+        (alternativeReaderView.parent as? ViewGroup)?.removeView(alternativeReaderView)
+        container.removeAllViews()
+        container.addView(
+          alternativeReaderView,
+          ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        )
+      }
+    },
+    modifier = Modifier.fillMaxSize()
+  )
 }
 
 @Suppress("LongMethod")

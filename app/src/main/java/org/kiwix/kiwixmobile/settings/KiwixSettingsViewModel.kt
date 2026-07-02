@@ -58,7 +58,7 @@ class KiwixSettingsViewModel @Inject constructor(
   private var storageDeviceList: List<StorageDevice> = listOf()
 
   init {
-    if (GeckoSupport.isGeckoIncluded) {
+    if (GeckoSupport.IS_GECKO_INCLUDED) {
       settingsUiState.update { it.copy(shouldShowGeckoRendererPreference = true) }
     }
   }

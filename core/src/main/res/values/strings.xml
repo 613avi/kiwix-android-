@@ -334,6 +334,7 @@
   <string name="search_open_in_new_tab">Open in new tab</string>
   <string name="search_in_titles">Titles</string>
   <string name="search_in_page_content">Page content</string>
+  <string name="search_in_all_pages">Search in all pages</string>
   <string name="pref_gecko_renderer_title">Use Gecko engine</string>
   <string name="pref_gecko_renderer_summary">Render pages with the built-in Firefox (Gecko) engine instead of Android WebView</string>
   <string name="webview_not_available_title">WebView is not available</string>

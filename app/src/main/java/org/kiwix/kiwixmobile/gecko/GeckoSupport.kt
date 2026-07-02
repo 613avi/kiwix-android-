@@ -19,41 +19,55 @@
 package org.kiwix.kiwixmobile.gecko
 
 import android.content.Context
-import android.content.Intent
+import android.view.View
 import org.kiwix.kiwixmobile.BuildConfig
 import org.kiwix.kiwixmobile.core.utils.files.Log
 
-const val GECKO_READER_URL_EXTRA = "geckoReaderUrl"
-private const val GECKO_READER_ACTIVITY = "org.kiwix.kiwixmobile.gecko.GeckoReaderActivity"
+private const val EMBEDDED_GECKO_READER = "org.kiwix.kiwixmobile.gecko.EmbeddedGeckoReader"
+
+/**
+ * The embedded Gecko based reader as seen by code that must also compile in
+ * builds without the Gecko engine. Implemented by EmbeddedGeckoReader in the
+ * gecko source set (see app/build.gradle.kts).
+ */
+interface EmbeddedGeckoReaderHolder {
+  /** The view rendering the content; shown inside the reader screen. */
+  val view: View
+
+  /** Whether the Gecko session can navigate back in its history. */
+  val canGoBack: Boolean
+
+  /** Loads [url]; when it fails to load, [fallbackUrl] is loaded instead. */
+  fun loadUrl(url: String, fallbackUrl: String?)
+
+  fun goBack()
+
+  fun close()
+}
 
 /**
  * Entry point to the optional GeckoView based reader.
  *
  * The Gecko engine is only bundled when the app is built with the `withGecko`
  * Gradle property (see app/build.gradle.kts); in regular builds
- * [isGeckoIncluded] is false and [openInGeckoReader] does nothing. The reader
- * activity is referenced by name so this class compiles in both build modes.
+ * [IS_GECKO_INCLUDED] is false and [createEmbeddedReader] returns null.
  */
 object GeckoSupport {
-  const val isGeckoIncluded: Boolean = BuildConfig.WITH_GECKO
+  const val IS_GECKO_INCLUDED: Boolean = BuildConfig.WITH_GECKO
 
   /**
-   * Opens the given URL (typically the localhost kiwix server serving the
-   * current book) in the bundled Gecko based reader.
-   *
-   * @return true if the reader was started, false if Gecko is not included in
-   *         this build or the activity could not be started.
+   * Creates an embedded Gecko reader, or returns null in builds without the
+   * Gecko engine. The implementation class is referenced by name so this
+   * class compiles in both build modes.
    */
-  fun openInGeckoReader(context: Context, url: String): Boolean {
-    if (!isGeckoIncluded) return false
+  fun createEmbeddedReader(context: Context): EmbeddedGeckoReaderHolder? {
+    if (!IS_GECKO_INCLUDED) return null
     return runCatching {
-      context.startActivity(
-        Intent()
-          .setClassName(context, GECKO_READER_ACTIVITY)
-          .putExtra(GECKO_READER_URL_EXTRA, url)
-      )
+      Class.forName(EMBEDDED_GECKO_READER)
+        .getConstructor(Context::class.java)
+        .newInstance(context) as EmbeddedGeckoReaderHolder
     }.onFailure {
-      Log.e("GeckoSupport", "Could not start the Gecko reader. $it")
-    }.isSuccess
+      Log.e("GeckoSupport", "Could not create the embedded Gecko reader. $it")
+    }.getOrNull()
   }
 }

@@ -163,20 +163,6 @@
       </intent-filter>
     </activity>
 
-    <!--
-     Reader backed by the bundled Gecko (Firefox) engine for devices without a
-     WebView. The class only exists in builds created with the `withGecko`
-     Gradle property; regular builds never launch it (see GeckoSupport).
-    -->
-    <activity
-      android:name=".gecko.GeckoReaderActivity"
-      android:configChanges="orientation|keyboardHidden|screenSize"
-      android:exported="false"
-      android:label="@string/app_name"
-      android:launchMode="singleTop"
-      android:theme="@style/KiwixTheme"
-      tools:ignore="MissingClass" />
-
     <receiver
       android:name=".main.KiwixSearchWidget"
       android:exported="true">

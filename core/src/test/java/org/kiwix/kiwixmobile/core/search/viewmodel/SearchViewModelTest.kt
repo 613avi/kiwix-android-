@@ -21,13 +21,16 @@ package org.kiwix.kiwixmobile.core.search.viewmodel
 import android.os.Bundle
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import io.mockk.Runs
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
@@ -66,6 +69,7 @@ import org.kiwix.kiwixmobile.core.search.viewmodel.effects.SearchArgumentProcess
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowDeleteSearchDialog
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowToast
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.StartSpeechInput
+import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
 import org.kiwix.kiwixmobile.core.utils.effects.CloseKeyboard
 import org.kiwix.libzim.SuggestionSearch
@@ -83,6 +87,7 @@ internal class SearchViewModelTest {
   private val zimFileReader: ZimFileReader = mockk()
   private val dialogShower = mockk<AlertDialogShower>(relaxed = true)
   private val searchMutex: Mutex = mockk()
+  private val kiwixDataStore: KiwixDataStore = mockk()
 
   lateinit var viewModel: SearchViewModel
 
@@ -101,11 +106,14 @@ internal class SearchViewModelTest {
     } returns null
     every { zimReaderContainer.id } returns "id"
     every { recentSearchRoomDao.recentSearches("id") } returns recentsFromDb
+    every { kiwixDataStore.searchMode } returns flowOf("")
+    coEvery { kiwixDataStore.setSearchMode(any()) } just Runs
     viewModel =
       SearchViewModel(
         recentSearchRoomDao,
         zimReaderContainer,
         searchResultGenerator,
+        kiwixDataStore,
         searchMutex,
         mainDispatcherRule.dispatcher
       ).apply {

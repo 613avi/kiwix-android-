@@ -20,6 +20,8 @@ package org.kiwix.kiwixmobile.core.main.reader
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.kiwix.kiwixmobile.core.reader.ZimReaderSource
 import org.kiwix.kiwixmobile.core.utils.files.Log
@@ -42,6 +44,9 @@ private const val LOCALHOST = "127.0.0.1"
  * exposed to other devices on the network (unlike the WiFi hotspot server).
  */
 object ExternalBrowserContentServer {
+  // Serializes concurrent start() calls (e.g. opening the book and a searched
+  // page at the same time) so only one server is created per ZIM file.
+  private val serverMutex = Mutex()
   private var server: Server? = null
 
   // The server runs on top of this library. Keep a reference to it so the
@@ -63,34 +68,38 @@ object ExternalBrowserContentServer {
     dispatcher: CoroutineDispatcher = Dispatchers.IO
   ): String? =
     withContext(dispatcher) {
-      if (server != null && zimReaderSource == servedZimReaderSource) {
-        return@withContext serverUrl
-      }
-      stop()
-      runCatching {
-        val archive =
-          zimReaderSource.createArchive() ?: return@withContext null
-        val kiwixLibrary = Library()
-        kiwixLibrary.addBook(Book().apply { update(archive) })
-        val port = findFreePort()
-        val kiwixServer =
-          Server(kiwixLibrary).apply {
-            setAddress(LOCALHOST)
-            setPort(port)
-          }
-        if (!kiwixServer.start()) {
-          Log.e(TAG, "Could not start the localhost server on port $port")
-          return@withContext null
+      serverMutex.withLock {
+        if (server != null && zimReaderSource == servedZimReaderSource) {
+          return@withContext serverUrl
         }
-        library = kiwixLibrary
-        server = kiwixServer
-        servedZimReaderSource = zimReaderSource
-        serverUrl = "http://$LOCALHOST:$port/"
-        serverUrl
-      }.onFailure {
-        Log.e(TAG, "Could not serve ${zimReaderSource.toDatabase()} for an external browser. $it")
-      }.getOrNull()
+        stop()
+        startNewServer(zimReaderSource)
+      }
     }
+
+  private suspend fun startNewServer(zimReaderSource: ZimReaderSource): String? =
+    runCatching {
+      val archive = zimReaderSource.createArchive() ?: return null
+      val kiwixLibrary = Library()
+      kiwixLibrary.addBook(Book().apply { update(archive) })
+      val port = findFreePort()
+      val kiwixServer =
+        Server(kiwixLibrary).apply {
+          setAddress(LOCALHOST)
+          setPort(port)
+        }
+      if (!kiwixServer.start()) {
+        Log.e(TAG, "Could not start the localhost server on port $port")
+        return null
+      }
+      library = kiwixLibrary
+      server = kiwixServer
+      servedZimReaderSource = zimReaderSource
+      serverUrl = "http://$LOCALHOST:$port/"
+      serverUrl
+    }.onFailure {
+      Log.e(TAG, "Could not serve ${zimReaderSource.toDatabase()} for an external browser. $it")
+    }.getOrNull()
 
   fun stop() {
     runCatching { server?.stop() }

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowDeleteSearchDialo
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.ShowToast
 import org.kiwix.kiwixmobile.core.search.viewmodel.effects.StartSpeechInput
 import org.kiwix.kiwixmobile.core.utils.ZERO
+import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
 import org.kiwix.kiwixmobile.core.utils.effects.CloseKeyboard
 import javax.inject.Inject
@@ -77,6 +79,7 @@ class SearchViewModel @Inject constructor(
   private val recentSearchRoomDao: RecentSearchRoomDao,
   private val zimReaderContainer: ZimReaderContainer,
   private val searchResultGenerator: SearchResultGenerator,
+  private val kiwixDataStore: KiwixDataStore,
   private val searchMutex: Mutex = Mutex(),
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -94,9 +97,22 @@ class SearchViewModel @Inject constructor(
   private val debouncedSearchQuery = MutableStateFlow("")
 
   init {
+    viewModelScope.launch { restoreSearchMode() }
     viewModelScope.launch { reducer() }
     viewModelScope.launch { actionMapper() }
     viewModelScope.launch { debouncedSearchQuery() }
+  }
+
+  /**
+   * Restores the last used search mode (titles/page content) so the search
+   * screen opens the way the user left it, e.g. when opened via the
+   * "search in all pages" reader menu item.
+   */
+  private suspend fun restoreSearchMode() {
+    val storedSearchMode = runCatching {
+      SearchMode.valueOf(kiwixDataStore.searchMode.first())
+    }.getOrDefault(SearchMode.TITLE)
+    onSearchModeChanged(storedSearchMode)
   }
 
   private suspend fun getSuggestedSpelledWords(word: String, maxCount: Int): List<String> =
@@ -329,6 +345,8 @@ class SearchViewModel @Inject constructor(
     if (searchMode.value == mode) return
     updateUiState { it.copy(searchMode = mode) }
     searchMode.value = mode
+    // Remember the chosen mode for the next time the search screen opens.
+    viewModelScope.launch { kiwixDataStore.setSearchMode(mode.name) }
   }
 
   fun onSearchValueChanged(searchText: String) {

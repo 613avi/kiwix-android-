@@ -18,6 +18,7 @@
 
 package org.kiwix.kiwixmobile.core.main.reader
 
+import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.material3.SnackbarHostState
 import org.kiwix.kiwixmobile.core.main.KiwixWebView
@@ -161,5 +162,12 @@ data class ReaderScreenState(
   /**
    * Manages the showing of header title of "table of content".
    */
-  val tableOfContentTitle: String
+  val tableOfContentTitle: String,
+  /**
+   * An alternative reader content view (e.g. the embedded GeckoView in builds
+   * that bundle the Gecko engine). When non-null it is rendered inside the
+   * reader screen in place of the WebView based tabs, keeping the app bar,
+   * drawer and navigation around it.
+   */
+  val alternativeReaderView: View? = null
 )
