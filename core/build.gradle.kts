@@ -53,8 +53,12 @@ dependencies {
     exclude(group = "stax", module = "stax")
   }
 
-  // Leak canary
-  debugImplementation(Libs.leakcanary_android)
+  // Leak canary - a development tool that adds a "Leaks" launcher icon to
+  // debug builds. Skipped in Gecko builds (-PwithGecko), which are debug
+  // builds distributed to end users.
+  if (!rootProject.hasProperty("withGecko")) {
+    debugImplementation(Libs.leakcanary_android)
+  }
 
   implementation(Libs.android_arch_lifecycle_extensions)
   implementation(Libs.webkit)

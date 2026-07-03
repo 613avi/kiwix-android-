@@ -1,1 +1,1 @@
-release 4: add minified standalone (no gecko) per-ABI APKs
+release 5: remove LeakCanary (Leaks app icon) from gecko builds
