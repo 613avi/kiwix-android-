@@ -84,7 +84,10 @@ data class SearchState(
             if (job?.isActive == false) break
             yield()
             val entry = searchIterator.next()
-            results.add(SearchListItem.ZimSearchResultListItem(entry.title, entry.path))
+            // A quote of the sentence containing the match; shown under the
+            // page title so the user can see why the page matched.
+            val snippet = runCatching { searchIterator.snippet }.getOrNull()
+            results.add(SearchListItem.ZimSearchResultListItem(entry.title, entry.path, snippet))
           }
         }
       }

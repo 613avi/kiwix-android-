@@ -27,4 +27,5 @@ class SearchIteratorWrapper : SearchIterator() {
 
   override fun hasNext(): Boolean = super.hasNext()
   override fun next(): EntryWrapper = super.next() as EntryWrapper
+  override fun getSnippet(): String = super.getSnippet()
 }
