@@ -27,6 +27,12 @@ sealed class SearchListItem {
 
   data class ZimSearchResultListItem constructor(
     override val value: String,
-    override val url: String?
+    override val url: String?,
+    /**
+     * A short quote of the sentence where the search term was found (full text
+     * search only), with the matched words wrapped in `<b>` tags as returned
+     * by the Xapian index.
+     */
+    val snippet: String? = null
   ) : SearchListItem()
 }

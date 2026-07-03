@@ -78,8 +78,10 @@ android {
   // it directly in the AndroidManifest file.
   namespace = "org.kiwix.kiwixmobile"
   defaultConfig {
-    resValue("string", "app_name", "Kiwix")
-    resValue("string", "app_search_string", "Search Kiwix")
+    // This fork is branded "Kiwix+" for its extended search; the Gecko build
+    // carries the engine name so both variants are distinguishable.
+    resValue("string", "app_name", if (withGecko) "Kiwix+ Gecko" else "Kiwix+")
+    resValue("string", "app_search_string", "Search Kiwix+")
     versionCode = "".getVersionCode()
     versionName = generateVersionName()
     manifestPlaceholders["permission"] = "android.permission.MANAGE_EXTERNAL_STORAGE"

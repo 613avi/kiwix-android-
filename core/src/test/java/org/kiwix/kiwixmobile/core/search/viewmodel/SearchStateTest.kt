@@ -79,11 +79,13 @@ internal class SearchStateTest {
     runTest {
       val searchTerm = "notEmpty"
       val pageUrl = "A/page"
+      val snippet = "a sentence with the <b>notEmpty</b> match"
       val searchWrapper: SearchWrapper = mockk()
       val searchIteratorWrapper: SearchIteratorWrapper = mockk()
       val entry: EntryWrapper = mockk()
       every { searchIteratorWrapper.hasNext() } returnsMany listOf(true, false)
       every { searchIteratorWrapper.next() } returns entry
+      every { searchIteratorWrapper.snippet } returns snippet
       every { entry.title } returns searchTerm
       every { entry.path } returns pageUrl
       every { searchWrapper.getResults(0, 20) } returns searchIteratorWrapper
@@ -94,7 +96,7 @@ internal class SearchStateTest {
           emptyList(),
           FromWebView
         ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
-      ).isEqualTo(listOf(SearchListItem.ZimSearchResultListItem(searchTerm, pageUrl)))
+      ).isEqualTo(listOf(SearchListItem.ZimSearchResultListItem(searchTerm, pageUrl, snippet)))
     }
 
   @OptIn(ExperimentalCoroutinesApi::class)
