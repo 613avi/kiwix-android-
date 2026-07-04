@@ -114,6 +114,7 @@ const val LOADING_ITEMS_BEFORE = 3
 const val VOICE_SEARCH_TESTING_TAG = "voiceSearchTestingTag"
 const val SEARCH_IN_TITLE_CHIP_TESTING_TAG = "searchInTitleChipTestingTag"
 const val SEARCH_IN_PAGE_CONTENT_CHIP_TESTING_TAG = "searchInPageContentChipTestingTag"
+const val SEARCH_LIST_TESTING_TAG = "searchListTestingTag"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("ComposableLambdaParameterNaming")
@@ -176,7 +177,15 @@ private fun SearchScreenContent(
       searchMode = state.searchMode,
       onSearchModeChanged = { searchViewModel.onSearchModeChanged(it) }
     )
-    SearchResults(state, searchViewModel, lazyListState, progressBarTrackColor)
+    SearchResults(
+      state,
+      searchViewModel,
+      lazyListState,
+      progressBarTrackColor,
+      // Give the results the remaining height so the list is properly bounded
+      // and can scroll independently of the search-mode chips above it.
+      modifier = Modifier.weight(1f)
+    )
   }
 }
 
@@ -237,10 +246,11 @@ private fun SearchResults(
   state: SearchScreenUiState,
   searchViewModel: SearchViewModel,
   lazyListState: LazyListState,
-  progressBarTrackColor: Color
+  progressBarTrackColor: Color,
+  modifier: Modifier = Modifier
 ) {
   Box(
-    modifier = Modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
     when {
@@ -256,6 +266,7 @@ private fun SearchResults(
         LazyColumn(
           modifier = Modifier
             .fillMaxSize()
+            .testTag(SEARCH_LIST_TESTING_TAG)
             // hides keyboard when scrolled
             .hideKeyboardOnLazyColumnScroll(lazyListState),
           state = lazyListState

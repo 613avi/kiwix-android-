@@ -202,6 +202,17 @@ sealed class KiwixDialog(
       customComposeViewBottomPadding = customViewBottomPadding
     )
 
+  data class SwitchBook(
+    private val customGetView: @Composable (() -> Unit)?
+  ) : KiwixDialog(
+      title = R.string.switch_book,
+      message = null,
+      cancelable = true,
+      confirmButtonText = R.string.empty_string,
+      dismissButtonText = android.R.string.cancel,
+      customComposeView = customGetView
+    )
+
   data class CopyMoveProgressBarDialog(
     private val customViewBottomPadding: Dp,
     private val customGetView: @Composable (() -> Unit)?
