@@ -84,6 +84,7 @@ internal class SearchViewModelTest {
   private val recentSearchRoomDao: RecentSearchRoomDao = mockk()
   private val zimReaderContainer: ZimReaderContainer = mockk()
   private val searchResultGenerator: SearchResultGenerator = mockk()
+  private val globalSearchResultGenerator: GlobalSearchResultGenerator = mockk()
   private val zimFileReader: ZimFileReader = mockk()
   private val dialogShower = mockk<AlertDialogShower>(relaxed = true)
   private val searchMutex: Mutex = mockk()
@@ -104,6 +105,9 @@ internal class SearchViewModelTest {
     coEvery {
       searchResultGenerator.generateSearchResults(any(), any(), zimFileReader)
     } returns null
+    coEvery {
+      globalSearchResultGenerator.generateSearchResults(any(), any())
+    } returns emptyList()
     every { zimReaderContainer.id } returns "id"
     every { recentSearchRoomDao.recentSearches("id") } returns recentsFromDb
     every { kiwixDataStore.searchMode } returns flowOf("")
@@ -113,6 +117,7 @@ internal class SearchViewModelTest {
         recentSearchRoomDao,
         zimReaderContainer,
         searchResultGenerator,
+        globalSearchResultGenerator,
         kiwixDataStore,
         searchMutex,
         mainDispatcherRule.dispatcher

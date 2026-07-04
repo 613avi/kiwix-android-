@@ -38,6 +38,11 @@ data class SearchState(
     ioDispatcher: CoroutineDispatcher
   ): List<SearchListItem>? {
     if (searchTerm.isEmpty()) return recentResults
+    // Results of a search across all books are computed up front and are not
+    // paginated; return them on the first page and nothing afterwards.
+    searchResultsWithTerm.globalResults?.let { globalResults ->
+      return if (startIndex == 0) globalResults else null
+    }
     return searchResultsWithTerm.searchMutex?.withLock {
       searchResultsWithTerm.zimSearchResultSet?.let {
         yield()
