@@ -2111,6 +2111,34 @@ abstract class CoreReaderFragment :
    * resulting URL is then loaded in the current web view.
    */
   private fun openSearchItem(item: SearchItemToOpen) {
+    val targetSourceDb = item.zimReaderSourceDatabaseValue
+    val currentSourceDb = zimReaderContainer?.zimReaderSource?.toDatabase()
+    if (targetSourceDb != null && targetSourceDb != currentSourceDb) {
+      // The result comes from a different book (search across all books):
+      // switch to that book first, then open the page.
+      openSearchItemInOtherBook(item, targetSourceDb)
+      return
+    }
+    loadSearchItemPage(item)
+    requireActivity().safelyConsumeObservable<SearchItemToOpen>(TAG_FILE_SEARCHED)
+  }
+
+  private fun openSearchItemInOtherBook(item: SearchItemToOpen, targetSourceDb: String) {
+    runSafelyInCoreReaderLifecycleScope {
+      val source = ZimReaderSource.fromDatabaseValue(targetSourceDb)
+      if (source?.canOpenInLibkiwix() == true) {
+        hideTabSwitcher()
+        stopOngoingLoadingAndClearWebViewList()
+        closeZimBook()
+        updateTitle()
+        openZimFile(source)
+        loadSearchItemPage(item)
+      }
+    }
+    requireActivity().safelyConsumeObservable<SearchItemToOpen>(TAG_FILE_SEARCHED)
+  }
+
+  private fun loadSearchItemPage(item: SearchItemToOpen) {
     if (item.shouldOpenInNewTab && !isAlternativeReaderActive()) {
       createNewTab()
     }
@@ -2119,7 +2147,6 @@ abstract class CoreReaderFragment :
         loadUrlWithCurrentWebview(zimReaderContainer?.urlSuffixToParsableUrl(this))
       }
     }
-    requireActivity().safelyConsumeObservable<SearchItemToOpen>(TAG_FILE_SEARCHED)
   }
 
   private fun handlePendingIntent() {

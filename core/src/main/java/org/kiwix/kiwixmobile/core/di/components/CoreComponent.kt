@@ -53,6 +53,7 @@ import org.kiwix.kiwixmobile.core.error.ErrorActivity
 import org.kiwix.kiwixmobile.core.main.KiwixWebView
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader
 import org.kiwix.kiwixmobile.core.reader.ZimReaderContainer
+import org.kiwix.kiwixmobile.core.search.viewmodel.GlobalSearchResultGenerator
 import org.kiwix.kiwixmobile.core.search.viewmodel.SearchResultGenerator
 import org.kiwix.kiwixmobile.core.utils.BookUtils
 import org.kiwix.kiwixmobile.core.utils.KiwixPermissionChecker
@@ -104,6 +105,7 @@ interface CoreComponent {
   fun downloader(): Downloader
   fun notificationManager(): NotificationManager
   fun searchResultGenerator(): SearchResultGenerator
+  fun globalSearchResultGenerator(): GlobalSearchResultGenerator
   fun mutex(): Mutex
   fun kiwixPermissionChecker(): KiwixPermissionChecker
   fun inject(application: CoreApp)

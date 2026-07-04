@@ -33,6 +33,18 @@ sealed class SearchListItem {
      * search only), with the matched words wrapped in `<b>` tags as returned
      * by the Xapian index.
      */
-    val snippet: String? = null
+    val snippet: String? = null,
+    /**
+     * The title of the book this result belongs to. Only set for results of a
+     * search across all books, where it is shown so the user knows which ZIM
+     * file each result came from.
+     */
+    val bookTitle: String? = null,
+    /**
+     * The [org.kiwix.kiwixmobile.core.reader.ZimReaderSource.toDatabase] value
+     * of the book this result belongs to. Only set for cross-book search
+     * results, so the reader can switch to the right book before opening.
+     */
+    val zimReaderSourceDatabaseValue: String? = null
   ) : SearchListItem()
 }

@@ -24,6 +24,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +116,7 @@ const val LOADING_ITEMS_BEFORE = 3
 const val VOICE_SEARCH_TESTING_TAG = "voiceSearchTestingTag"
 const val SEARCH_IN_TITLE_CHIP_TESTING_TAG = "searchInTitleChipTestingTag"
 const val SEARCH_IN_PAGE_CONTENT_CHIP_TESTING_TAG = "searchInPageContentChipTestingTag"
+const val SEARCH_IN_ALL_BOOKS_CHIP_TESTING_TAG = "searchInAllBooksChipTestingTag"
 const val SEARCH_LIST_TESTING_TAG = "searchListTestingTag"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -175,7 +178,9 @@ private fun SearchScreenContent(
   ) {
     SearchModeChips(
       searchMode = state.searchMode,
-      onSearchModeChanged = { searchViewModel.onSearchModeChanged(it) }
+      onSearchModeChanged = { searchViewModel.onSearchModeChanged(it) },
+      searchAllBooks = state.searchAllBooks,
+      onSearchAllBooksChanged = { searchViewModel.onSearchAllBooksChanged(it) }
     )
     SearchResults(
       state,
@@ -192,11 +197,14 @@ private fun SearchScreenContent(
 @Composable
 private fun SearchModeChips(
   searchMode: SearchMode,
-  onSearchModeChanged: (SearchMode) -> Unit
+  onSearchModeChanged: (SearchMode) -> Unit,
+  searchAllBooks: Boolean,
+  onSearchAllBooksChanged: (Boolean) -> Unit
 ) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
+      .horizontalScroll(rememberScrollState())
       .padding(horizontal = EIGHT_DP),
     horizontalArrangement = Arrangement.spacedBy(EIGHT_DP)
   ) {
@@ -211,6 +219,12 @@ private fun SearchModeChips(
       onClick = { onSearchModeChanged(SearchMode.PAGE_CONTENT) },
       label = stringResource(R.string.search_in_page_content),
       testTag = SEARCH_IN_PAGE_CONTENT_CHIP_TESTING_TAG
+    )
+    SearchModeChip(
+      selected = searchAllBooks,
+      onClick = { onSearchAllBooksChanged(!searchAllBooks) },
+      label = stringResource(R.string.search_in_all_books),
+      testTag = SEARCH_IN_ALL_BOOKS_CHIP_TESTING_TAG
     )
   }
 }
@@ -464,6 +478,7 @@ private fun SearchListItem(
           text = searchListItem.value,
           fontSize = SEARCH_ITEM_TEXT_SIZE
         )
+        SearchResultBookLabel(searchListItem)
         SearchResultSnippet(searchListItem)
       }
     }
@@ -482,6 +497,25 @@ private fun SearchListItem(
       )
     }
   }
+}
+
+/**
+ * Shows the book a result belongs to (search across all books only), so the
+ * user knows which ZIM file each result came from.
+ */
+@Composable
+private fun SearchResultBookLabel(searchListItem: SearchListItem) {
+  val bookTitle = (searchListItem as? SearchListItem.ZimSearchResultListItem)
+    ?.bookTitle
+    ?.takeIf(String::isNotBlank) ?: return
+  Text(
+    text = bookTitle,
+    fontSize = SEARCH_ITEM_SNIPPET_TEXT_SIZE,
+    color = MaterialTheme.colorScheme.primary,
+    maxLines = 1,
+    overflow = Ellipsis,
+    modifier = Modifier.padding(top = THREE_DP)
+  )
 }
 
 /**

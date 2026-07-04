@@ -79,6 +79,7 @@ class SearchViewModel @Inject constructor(
   private val recentSearchRoomDao: RecentSearchRoomDao,
   private val zimReaderContainer: ZimReaderContainer,
   private val searchResultGenerator: SearchResultGenerator,
+  private val globalSearchResultGenerator: GlobalSearchResultGenerator,
   private val kiwixDataStore: KiwixDataStore,
   private val searchMutex: Mutex = Mutex(),
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -92,6 +93,7 @@ class SearchViewModel @Inject constructor(
   val actions = MutableSharedFlow<Action>(extraBufferCapacity = Int.MAX_VALUE)
   private val filter = MutableStateFlow("")
   private val searchMode = MutableStateFlow(SearchMode.TITLE)
+  private val searchAllBooks = MutableStateFlow(false)
   private val searchOrigin = MutableStateFlow(FromWebView)
   private lateinit var alertDialogShower: AlertDialogShower
   private val debouncedSearchQuery = MutableStateFlow("")
@@ -205,18 +207,31 @@ class SearchViewModel @Inject constructor(
   }
 
   private fun searchResults() =
-    combine(filter.asStateFlow(), searchMode.asStateFlow()) { searchTerm, searchMode ->
-      searchTerm to searchMode
-    }.mapLatest { (searchTerm, searchMode) ->
-      SearchResultsWithTerm(
-        searchTerm,
-        searchResultGenerator.generateSearchResults(
+    combine(
+      filter.asStateFlow(),
+      searchMode.asStateFlow(),
+      searchAllBooks.asStateFlow()
+    ) { searchTerm, searchMode, searchAllBooks ->
+      Triple(searchTerm, searchMode, searchAllBooks)
+    }.mapLatest { (searchTerm, searchMode, searchAllBooks) ->
+      if (searchAllBooks) {
+        SearchResultsWithTerm(
+          searchTerm = searchTerm,
+          zimSearchResultSet = null,
+          searchMutex = searchMutex,
+          globalResults = globalSearchResultGenerator.generateSearchResults(searchTerm, searchMode)
+        )
+      } else {
+        SearchResultsWithTerm(
           searchTerm,
-          searchMode,
-          zimReaderContainer.zimFileReader
-        ),
-        searchMutex
-      )
+          searchResultGenerator.generateSearchResults(
+            searchTerm,
+            searchMode,
+            zimReaderContainer.zimFileReader
+          ),
+          searchMutex
+        )
+      }
     }
 
   @Suppress("CyclomaticComplexMethod")
@@ -349,6 +364,12 @@ class SearchViewModel @Inject constructor(
     viewModelScope.launch { kiwixDataStore.setSearchMode(mode.name) }
   }
 
+  fun onSearchAllBooksChanged(allBooks: Boolean) {
+    if (searchAllBooks.value == allBooks) return
+    updateUiState { it.copy(searchAllBooks = allBooks) }
+    searchAllBooks.value = allBooks
+  }
+
   fun onSearchValueChanged(searchText: String) {
     updateSearchQuery(searchText)
   }
@@ -380,7 +401,13 @@ class SearchViewModel @Inject constructor(
 data class SearchResultsWithTerm(
   val searchTerm: String,
   val zimSearchResultSet: ZimSearchResultSet?,
-  val searchMutex: Mutex?
+  val searchMutex: Mutex?,
+  /**
+   * Pre-computed results for a search across all books (see
+   * [GlobalSearchResultGenerator]). When set, these are shown directly instead
+   * of paginating a single book's [zimSearchResultSet].
+   */
+  val globalResults: List<SearchListItem>? = null
 )
 
 data class SearchScreenUiState(
@@ -390,6 +417,7 @@ data class SearchScreenUiState(
   val isLoadingMore: Boolean = false,
   val spellingCorrectionSuggestions: List<String> = emptyList(),
   val searchMode: SearchMode = SearchMode.TITLE,
+  val searchAllBooks: Boolean = false,
   val searchOrigin: SearchOrigin = FromWebView,
   val searchState: SearchState = SearchState(
     "",
