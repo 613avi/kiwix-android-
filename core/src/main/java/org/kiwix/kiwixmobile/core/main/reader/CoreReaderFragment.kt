@@ -182,6 +182,8 @@ import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
 import org.kiwix.kiwixmobile.core.utils.WebViewAvailability
 import org.kiwix.kiwixmobile.core.utils.ZERO
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
+import org.kiwix.kiwixmobile.core.dao.LibkiwixBookOnDisk
+import org.kiwix.kiwixmobile.core.zim_manager.fileselect_view.BooksOnDiskListItem
 import org.kiwix.kiwixmobile.core.utils.dialog.AlertDialogShower
 import org.kiwix.kiwixmobile.core.utils.dialog.DialogHost
 import org.kiwix.kiwixmobile.core.utils.dialog.DialogShower
@@ -238,6 +240,10 @@ abstract class CoreReaderFragment :
   @JvmField
   @Inject
   var libkiwixBookmarks: LibkiwixBookmarks? = null
+
+  @JvmField
+  @Inject
+  var libkiwixBookOnDisk: LibkiwixBookOnDisk? = null
 
   @JvmField
   @Inject
@@ -2290,6 +2296,47 @@ abstract class CoreReaderFragment :
   private fun openMainPage() {
     val articleUrl = zimReaderContainer?.mainPage
     openArticle(articleUrl)
+  }
+
+  /**
+   * Shows a dialog listing all ZIM files on the device so the user can quickly
+   * switch the active book without leaving the reader.
+   */
+  fun showBookSwitcher() {
+    val dialogShower = alertDialogShower ?: return
+    lifecycleScope.launch {
+      val books = withContext(ioDispatcher) {
+        runCatching { libkiwixBookOnDisk?.getBooks().orEmpty() }.getOrDefault(emptyList())
+          .sortedBy { it.book.title.lowercase() }
+      }
+      val currentBookId = zimReaderContainer?.zimFileReader?.id
+      dialogShower.show(
+        KiwixDialog.SwitchBook {
+          BookSwitcherDialogContent(
+            books = books,
+            currentBookId = currentBookId
+          ) { bookOnDisk ->
+            (dialogShower as? AlertDialogShower)?.dismiss()
+            switchToBook(bookOnDisk)
+          }
+        }
+      )
+    }
+  }
+
+  private fun switchToBook(bookOnDisk: BooksOnDiskListItem.BookOnDisk) {
+    if (bookOnDisk.book.id == zimReaderContainer?.zimFileReader?.id) return
+    (activity as? CoreMainActivity)?.closeNavigationDrawer()
+    runSafelyInCoreReaderLifecycleScope {
+      // Mirror the ordering used when opening a book from the library to avoid
+      // native crashes: stop the WebViews and close the previous book before
+      // setting the new archive in the reader.
+      hideTabSwitcher()
+      stopOngoingLoadingAndClearWebViewList()
+      closeZimBook()
+      updateTitle()
+      openZimFile(bookOnDisk.zimReaderSource)
+    }
   }
 
   private fun setUpWithTextToSpeech(kiwixWebView: KiwixWebView?) {

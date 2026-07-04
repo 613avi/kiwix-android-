@@ -332,6 +332,9 @@
   <string name="percentage">%d%%</string>
   <string name="pref_text_zoom_title">Text Zoom</string>
   <string name="search_open_in_new_tab">Open in new tab</string>
+  <string name="switch_book">Switch book</string>
+  <string name="currently_open">Currently open</string>
+  <string name="no_book_to_switch">No other books found on this device.</string>
   <string name="search_in_titles">Titles</string>
   <string name="search_in_page_content">Page content</string>
   <string name="search_in_all_pages">Search in all pages</string>

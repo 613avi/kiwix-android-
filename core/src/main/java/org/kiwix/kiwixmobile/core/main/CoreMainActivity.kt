@@ -73,6 +73,7 @@ import org.kiwix.kiwixmobile.core.downloader.downloadManager.DownloadMonitorServ
 import org.kiwix.kiwixmobile.core.error.ErrorActivity
 import org.kiwix.kiwixmobile.core.extensions.ActivityExtensions.setNavigationResultOnCurrent
 import org.kiwix.kiwixmobile.core.extensions.browserIntent
+import org.kiwix.kiwixmobile.core.main.reader.CoreReaderFragment
 import org.kiwix.kiwixmobile.core.reader.ZimReaderContainer
 import org.kiwix.kiwixmobile.core.reader.ZimReaderSource
 import org.kiwix.kiwixmobile.core.utils.ExternalLinkOpener
@@ -116,6 +117,7 @@ const val ZIM_HOST_NAV_DEEP_LINK = "$ZIM_HOST_DEEP_LINK_SCHEME://zimhost"
 const val LEFT_DRAWER_BOOKMARK_ITEM_TESTING_TAG = "leftDrawerBookmarkItemTestingTag"
 const val LEFT_DRAWER_HISTORY_ITEM_TESTING_TAG = "leftDrawerHistoryItemTestingTag"
 const val LEFT_DRAWER_NOTES_ITEM_TESTING_TAG = "leftDrawerNotesItemTestingTag"
+const val LEFT_DRAWER_SWITCH_BOOK_ITEM_TESTING_TAG = "leftDrawerSwitchBookItemTestingTag"
 const val LEFT_DRAWER_SETTINGS_ITEM_TESTING_TAG = "leftDrawerSettingsItemTestingTag"
 const val LEFT_DRAWER_SUPPORT_ITEM_TESTING_TAG = "leftDrawerSupportItemTestingTag"
 const val LEFT_DRAWER_HELP_ITEM_TESTING_TAG = "leftDrawerHelpItemTestingTag"
@@ -503,6 +505,30 @@ abstract class CoreMainActivity : BaseActivity(), WebViewProvider {
     navigate(notesScreenRoute)
   }
 
+  /**
+   * Opens the "Switch book" dialog from the reader so the user can quickly
+   * change the active ZIM file. If the reader is not the current screen, falls
+   * back to opening the library.
+   */
+  private fun openBookSwitcher() {
+    val readerFragment =
+      activeFragments().filterIsInstance<CoreReaderFragment>().firstOrNull()
+    if (readerFragment != null) {
+      readerFragment.showBookSwitcher()
+    } else {
+      closeNavigationDrawer()
+      openLibrary()
+    }
+  }
+
+  /**
+   * Navigates to the local library. Overridden by the main app; a no-op by
+   * default so custom apps (which have no library) are unaffected.
+   */
+  protected open fun openLibrary() {
+    // No library in the base activity.
+  }
+
   protected fun handleDrawerOnNavigation() {
     closeNavigationDrawer()
     disableLeftDrawer()
@@ -523,6 +549,13 @@ abstract class CoreMainActivity : BaseActivity(), WebViewProvider {
   private val bookRelatedDrawerGroup by lazy {
     DrawerMenuGroup(
       listOfNotNull(
+        DrawerMenuItem(
+          title = getString(R.string.switch_book),
+          iconRes = R.drawable.ic_open_in_new_24dp,
+          visible = true,
+          onClick = { openBookSwitcher() },
+          testingTag = LEFT_DRAWER_SWITCH_BOOK_ITEM_TESTING_TAG
+        ),
         DrawerMenuItem(
           title = getString(R.string.bookmarks),
           iconRes = R.drawable.ic_bookmark_black_24dp,
