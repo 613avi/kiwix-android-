@@ -33,7 +33,6 @@ import org.kiwix.kiwixmobile.core.settings.StorageCalculator
 import org.kiwix.kiwixmobile.core.settings.viewmodel.CoreSettingsViewModel
 import org.kiwix.kiwixmobile.core.utils.KiwixPermissionChecker
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
-import org.kiwix.kiwixmobile.gecko.GeckoSupport
 import org.kiwix.kiwixmobile.main.KiwixMainActivity
 import javax.inject.Inject
 
@@ -56,12 +55,6 @@ class KiwixSettingsViewModel @Inject constructor(
     kiwixPermissionChecker
   ) {
   private var storageDeviceList: List<StorageDevice> = listOf()
-
-  init {
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
-      settingsUiState.update { it.copy(shouldShowGeckoRendererPreference = true) }
-    }
-  }
 
   override suspend fun setStorage(coreMainActivity: CoreMainActivity) {
     settingsUiState.update { it.copy(shouldShowStorageCategory = true) }
