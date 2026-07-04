@@ -283,11 +283,6 @@ object Libs {
   const val libkiwix: String = "org.kiwix:libkiwix:" + Versions.libkiwix
 
   /**
-   * https://mozilla.github.io/geckoview/
-   */
-  const val geckoview: String = "org.mozilla.geckoview:geckoview:" + Versions.geckoview
-
-  /**
    * https://github.com/material-components/material-components-android
    */
   const val material: String = "com.google.android.material:material:" + Versions.material

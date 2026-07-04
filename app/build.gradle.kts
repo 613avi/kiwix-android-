@@ -23,12 +23,6 @@ fun generateVersionName() = "${Config.versionMajor}.${Config.versionMinor}.${Con
 
 val apkPrefix get() = System.getenv("TAG") ?: "kiwix"
 
-// Builds a variant of the app that bundles the GeckoView (Firefox) rendering
-// engine, so pages can be read on devices that have no WebView and no browser
-// installed. Enable it with: ./gradlew assembleDebug -PwithGecko
-// The Gecko engine adds roughly 70 MB per ABI, so the APK is restricted to ARM
-// devices when this flag is enabled. Regular builds are completely unaffected.
-val withGecko = hasProperty("withGecko")
 val autoModifiedTrackedFiles = listOf(
   File("$rootDir/core/src/main/res/values-b+be+tarask/strings.xml"),
   File("$rootDir/core/src/main/res/values-b+be+tarask+old/strings.xml"),
@@ -78,42 +72,13 @@ android {
   // it directly in the AndroidManifest file.
   namespace = "org.kiwix.kiwixmobile"
   defaultConfig {
-    // This fork is branded "Kiwix+" for its extended search; the Gecko build
-    // carries the engine name so both variants are distinguishable.
-    resValue("string", "app_name", if (withGecko) "Kiwix+ Gecko" else "Kiwix+")
+    // This fork is branded "Kiwix+" for its extended search.
+    resValue("string", "app_name", "Kiwix+")
     resValue("string", "app_search_string", "Search Kiwix+")
     versionCode = "".getVersionCode()
     versionName = generateVersionName()
     manifestPlaceholders["permission"] = "android.permission.MANAGE_EXTERNAL_STORAGE"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("boolean", "WITH_GECKO", withGecko.toString())
-    if (withGecko) {
-      // Makes the installed variant recognisable in Settings -> version.
-      versionNameSuffix = "-gecko"
-      // GeckoView requires at least Android 8 (API 26); the regular build keeps
-      // supporting Android 7.1 (API 25).
-      minSdk = 26
-      ndk {
-        // GeckoView ships huge native libraries per ABI, so the Gecko flavoured
-        // APK is restricted to ARM devices to keep it installable. A single ABI
-        // can be selected with e.g. -PgeckoAbi=arm64-v8a for a smaller APK.
-        abiFilters += (findProperty("geckoAbi") as String?)?.split(",")
-          ?: listOf("arm64-v8a", "armeabi-v7a")
-      }
-    }
-  }
-  if (withGecko) {
-    packaging {
-      // Compress the (very large) Gecko native libraries inside the APK. They
-      // are extracted at install time, trading disk space for a much smaller
-      // APK download - Gecko builds are distributed by direct download.
-      jniLibs.useLegacyPackaging = true
-    }
-  }
-  if (withGecko) {
-    sourceSets.getByName("main") {
-      java.srcDir("src/gecko/java")
-    }
   }
   lint {
     checkDependencies = true
@@ -201,9 +166,6 @@ androidComponents {
 }
 
 dependencies {
-  if (withGecko) {
-    implementation(Libs.geckoview)
-  }
   androidTestImplementation(Libs.leakcanary_android_instrumentation)
   androidTestImplementation(Libs.shark_android)
   // inject migration module in test cases.
