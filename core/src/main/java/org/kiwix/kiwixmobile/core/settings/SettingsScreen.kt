@@ -499,6 +499,8 @@ private fun ExtrasCategory(
   val externalLinkPopup by coreSettingsViewModel.externalLinkPopup.collectAsStateWithLifecycle()
   val preferGeckoRenderer by
     coreSettingsViewModel.preferGeckoRenderer.collectAsStateWithLifecycle()
+  val nativeReaderMode by
+    coreSettingsViewModel.nativeReaderMode.collectAsStateWithLifecycle()
   val wifiOnly by coreSettingsViewModel.wifiOnly.collectAsStateWithLifecycle()
   SettingsCategory(stringResource(R.string.pref_extras)) {
     SwitchPreference(
@@ -506,6 +508,12 @@ private fun ExtrasCategory(
       summary = stringResource(R.string.pref_newtab_background_summary),
       checked = newTabInBackground,
       onCheckedChange = { coreSettingsViewModel.setNewTabInBackground(it) }
+    )
+    SwitchPreference(
+      title = stringResource(R.string.pref_native_reader_title),
+      summary = stringResource(R.string.pref_native_reader_summary),
+      checked = nativeReaderMode,
+      onCheckedChange = { coreSettingsViewModel.setNativeReaderMode(it) }
     )
     if (settingsUiState.shouldShowExternalLinkPreference) {
       SwitchPreference(

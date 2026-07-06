@@ -34,6 +34,8 @@ object PreferencesKeys {
     booleanPreferencesKey(KiwixDataStore.PREF_EXTERNAL_LINK_POPUP)
   val PREF_PREFER_GECKO_RENDERER =
     booleanPreferencesKey(KiwixDataStore.PREF_PREFER_GECKO_RENDERER)
+  val PREF_NATIVE_READER_MODE =
+    booleanPreferencesKey(KiwixDataStore.PREF_NATIVE_READER_MODE)
   val PREF_SEARCH_MODE = stringPreferencesKey(KiwixDataStore.PREF_SEARCH_MODE)
   val PREF_WIFI_ONLY = booleanPreferencesKey(KiwixDataStore.PREF_WIFI_ONLY)
   val PREF_THEME = stringPreferencesKey(KiwixDataStore.PREF_THEME)

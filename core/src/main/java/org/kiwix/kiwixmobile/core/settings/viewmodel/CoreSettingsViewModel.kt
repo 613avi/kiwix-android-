@@ -145,6 +145,19 @@ abstract class CoreSettingsViewModel(
       initialValue = true
     )
 
+  val nativeReaderMode = kiwixDataStore.nativeReaderMode
+    .stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.Eagerly,
+      initialValue = false
+    )
+
+  fun setNativeReaderMode(enabled: Boolean) {
+    viewModelScope.launch {
+      kiwixDataStore.setNativeReaderMode(enabled)
+    }
+  }
+
   val preferGeckoRenderer = kiwixDataStore.preferGeckoRenderer
     .stateIn(
       scope = viewModelScope,

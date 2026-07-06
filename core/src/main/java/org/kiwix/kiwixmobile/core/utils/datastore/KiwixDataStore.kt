@@ -145,6 +145,23 @@ class KiwixDataStore @Inject constructor(
   }
 
   /**
+   * Whether articles should be rendered with the lightweight native
+   * (WebView-free) reader mode. Useful on devices whose Android System WebView
+   * is broken or missing. Off by default; the reader also switches to it
+   * automatically when no usable WebView is present.
+   */
+  val nativeReaderMode: Flow<Boolean> =
+    context.kiwixDataStore.data.map { prefs ->
+      prefs[PreferencesKeys.PREF_NATIVE_READER_MODE] ?: false
+    }
+
+  suspend fun setNativeReaderMode(enabled: Boolean) {
+    context.kiwixDataStore.edit { prefs ->
+      prefs[PreferencesKeys.PREF_NATIVE_READER_MODE] = enabled
+    }
+  }
+
+  /**
    * The last used search mode in the search screen, stored as the name of the
    * [org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode] enum value.
    */
@@ -639,6 +656,7 @@ class KiwixDataStore @Inject constructor(
     const val PREF_NEW_TAB_BACKGROUND = "pref_newtab_background"
     const val PREF_EXTERNAL_LINK_POPUP = "pref_external_link_popup"
     const val PREF_PREFER_GECKO_RENDERER = "pref_prefer_gecko_renderer"
+    const val PREF_NATIVE_READER_MODE = "pref_native_reader_mode"
     const val PREF_SEARCH_MODE = "pref_search_mode"
     const val PREF_SHOW_STORAGE_OPTION = "show_storgae_option"
     const val PREF_IS_FIRST_RUN = "isFirstRun"
