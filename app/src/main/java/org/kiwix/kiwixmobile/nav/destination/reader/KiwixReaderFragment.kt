@@ -327,8 +327,12 @@ class KiwixReaderFragment : CoreReaderFragment() {
    * builds that include GeckoView (built with the `withGecko` Gradle property).
    */
   override suspend fun shouldOpenInAlternativeRenderer(): Boolean =
-    GeckoSupport.IS_GECKO_INCLUDED &&
-      (refreshGeckoPreference() || isWebViewNotAvailable())
+    if (GeckoSupport.IS_GECKO_INCLUDED) {
+      refreshGeckoPreference() || isWebViewNotAvailable()
+    } else {
+      // Regular build: fall back to the native (WebView-free) reader mode.
+      super.shouldOpenInAlternativeRenderer()
+    }
 
   private suspend fun refreshGeckoPreference(): Boolean =
     (kiwixDataStore?.preferGeckoRenderer?.first() == true).also { preferGecko = it }
@@ -381,16 +385,22 @@ class KiwixReaderFragment : CoreReaderFragment() {
   }
 
   override fun openBookInAlternativeRenderer() {
-    lifecycleScope.launch { openBookInGecko() }
+    if (GeckoSupport.IS_GECKO_INCLUDED) {
+      lifecycleScope.launch { openBookInGecko() }
+    } else {
+      super.openBookInAlternativeRenderer()
+    }
   }
 
   override fun loadUrlInAlternativeReader(url: String): Boolean {
+    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.loadUrlInAlternativeReader(url)
     if (!useGeckoRenderer()) return false
     lifecycleScope.launch { openBookInGecko(url) }
     return true
   }
 
   override fun onAlternativeReaderBackPressed(): Boolean {
+    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.onAlternativeReaderBackPressed()
     val reader = embeddedGeckoReader ?: return false
     if (!isAlternativeReaderActive() || !reader.canGoBack) return false
     reader.goBack()
@@ -398,8 +408,11 @@ class KiwixReaderFragment : CoreReaderFragment() {
   }
 
   override fun closeAlternativeReader() {
-    embeddedGeckoReader?.close()
-    embeddedGeckoReader = null
+    if (GeckoSupport.IS_GECKO_INCLUDED) {
+      embeddedGeckoReader?.close()
+      embeddedGeckoReader = null
+    }
+    super.closeAlternativeReader()
   }
 
   override fun showWebViewNotAvailableDialog() {

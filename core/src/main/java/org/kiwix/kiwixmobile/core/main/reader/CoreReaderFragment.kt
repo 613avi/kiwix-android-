@@ -1664,11 +1664,17 @@ abstract class CoreReaderFragment :
 
   /**
    * Gives the alternative reader (if any) a chance to consume a back press,
-   * e.g. to navigate back in the Gecko session history.
+   * e.g. to navigate back in the Gecko session history or the native reader's
+   * article history.
    *
    * @return true when the back press was consumed.
    */
-  protected open fun onAlternativeReaderBackPressed(): Boolean = false
+  protected open fun onAlternativeReaderBackPressed(): Boolean {
+    val reader = nativeArticleReader ?: return false
+    if (!isAlternativeReaderActive() || !reader.canGoBack) return false
+    reader.goBack()
+    return true
+  }
 
   /**
    * Gives the alternative reader (if any) a chance to load the given
@@ -1676,27 +1682,76 @@ abstract class CoreReaderFragment :
    *
    * @return true when the URL will be shown by the alternative reader.
    */
-  protected open fun loadUrlInAlternativeReader(url: String): Boolean = false
+  protected open fun loadUrlInAlternativeReader(url: String): Boolean {
+    if (!isAlternativeReaderActive()) return false
+    nativeArticleReader?.loadUrl(url) ?: return false
+    return true
+  }
 
   /**
    * Releases the resources of the alternative reader (if any). Called when the
    * reader views are destroyed.
    */
   protected open fun closeAlternativeReader() {
-    // No alternative reader in the default reader.
+    nativeArticleReader?.close()
+    nativeArticleReader = null
   }
 
   /**
    * Whether the currently opening book should be shown in an alternative
-   * renderer instead of the WebView based reader. Subclasses that provide an
-   * alternative renderer (e.g. the Kiwix app with the bundled Gecko engine)
-   * override this together with [openBookInAlternativeRenderer].
+   * renderer instead of the WebView based reader. By default the native reader
+   * mode is used when the user enabled it, or when the device has no usable
+   * WebView. Subclasses (e.g. the Gecko build) may override to provide a
+   * different renderer.
    */
-  protected open suspend fun shouldOpenInAlternativeRenderer(): Boolean = false
+  protected open suspend fun shouldOpenInAlternativeRenderer(): Boolean =
+    isNativeReaderPreferred() || isWebViewNotAvailable()
+
+  private suspend fun isNativeReaderPreferred(): Boolean =
+    kiwixDataStore?.nativeReaderMode?.first() == true
 
   protected open fun openBookInAlternativeRenderer() {
-    // No alternative renderer in the default reader.
+    openBookInNativeReader(null)
   }
+
+  private var nativeArticleReader: NativeArticleReader? = null
+
+  /**
+   * Shows the current book inside the reader screen with the native, WebView-free
+   * article reader. When [pageUrl] is null the book's main page is shown.
+   */
+  private fun openBookInNativeReader(pageUrl: String?) {
+    val reader = nativeArticleReader
+      ?: createNativeArticleReader().also { nativeArticleReader = it }
+    setAlternativeReaderView(reader.view)
+    val url = pageUrl ?: zimReaderContainer?.mainPage?.let { contentUrl(it) }
+    if (url != null) {
+      reader.loadUrl(url)
+    }
+    readerMenuState?.onFileOpened(true)
+    updateTitle()
+  }
+
+  private fun createNativeArticleReader(): NativeArticleReader =
+    NativeArticleReader(
+      context = requireContext(),
+      loadHtml = { url -> loadZimContentAsText(url) },
+      loadImageBytes = { url -> loadZimContentAsBytes(url) },
+      onInternalUrl = { updateTitle() },
+      onExternalUrl = { url ->
+        openExternalUrl(Intent(Intent.ACTION_VIEW, url.toUri()))
+      }
+    )
+
+  private suspend fun loadZimContentAsText(url: String): String? =
+    runCatching {
+      zimReaderContainer?.zimFileReader?.load(url)?.use { it.readBytes().toString(Charsets.UTF_8) }
+    }.getOrNull()
+
+  private suspend fun loadZimContentAsBytes(url: String): ByteArray? =
+    runCatching {
+      zimReaderContainer?.zimFileReader?.load(url)?.use { it.readBytes() }
+    }.getOrNull()
 
   /**
    * Shown when the device has no usable WebView (not installed or disabled).

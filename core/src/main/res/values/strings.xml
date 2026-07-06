@@ -332,6 +332,8 @@
   <string name="percentage">%d%%</string>
   <string name="pref_text_zoom_title">Text Zoom</string>
   <string name="search_open_in_new_tab">Open in new tab</string>
+  <string name="pref_native_reader_title">Native reader mode (no WebView)</string>
+  <string name="pref_native_reader_summary">Render articles without the Android System WebView. Useful if your WebView is broken or missing. Complex layouts (tables, infoboxes) may look simpler.</string>
   <string name="switch_book">Switch book</string>
   <string name="currently_open">Currently open</string>
   <string name="no_book_to_switch">No other books found on this device.</string>
