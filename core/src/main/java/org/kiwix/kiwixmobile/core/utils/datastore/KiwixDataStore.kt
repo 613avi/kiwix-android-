@@ -127,6 +127,24 @@ class KiwixDataStore @Inject constructor(
   }
 
   /**
+   * Whether pages should be rendered with the bundled Gecko engine instead of
+   * the Android WebView. Only has an effect in builds that include GeckoView,
+   * where the app sets [preferGeckoRendererDefault] to true on startup so that
+   * Gecko is the default renderer and the settings switch opts back into the
+   * WebView.
+   */
+  val preferGeckoRenderer: Flow<Boolean> =
+    context.kiwixDataStore.data.map { prefs ->
+      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] ?: preferGeckoRendererDefault
+    }
+
+  suspend fun setPreferGeckoRenderer(preferGeckoRenderer: Boolean) {
+    context.kiwixDataStore.edit { prefs ->
+      prefs[PreferencesKeys.PREF_PREFER_GECKO_RENDERER] = preferGeckoRenderer
+    }
+  }
+
+  /**
    * The last used search mode in the search screen, stored as the name of the
    * [org.kiwix.kiwixmobile.core.search.viewmodel.SearchMode] enum value.
    */
@@ -600,6 +618,14 @@ class KiwixDataStore @Inject constructor(
   }
 
   companion object {
+    /**
+     * The default renderer when the user has not chosen one. Set to true by
+     * the app on startup in builds that bundle the Gecko engine, so those
+     * builds render with Gecko out of the box.
+     */
+    @JvmStatic
+    var preferGeckoRendererDefault = false
+
     // Prefs
     const val PREF_LANG = "pref_language_chooser"
     const val PREF_STORAGE = "pref_select_folder"
@@ -612,6 +638,7 @@ class KiwixDataStore @Inject constructor(
     const val PREF_BACK_TO_TOP = "pref_backtotop"
     const val PREF_NEW_TAB_BACKGROUND = "pref_newtab_background"
     const val PREF_EXTERNAL_LINK_POPUP = "pref_external_link_popup"
+    const val PREF_PREFER_GECKO_RENDERER = "pref_prefer_gecko_renderer"
     const val PREF_SEARCH_MODE = "pref_search_mode"
     const val PREF_SHOW_STORAGE_OPTION = "show_storgae_option"
     const val PREF_IS_FIRST_RUN = "isFirstRun"

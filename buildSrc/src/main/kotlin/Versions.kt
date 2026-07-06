@@ -82,6 +82,8 @@ object Versions {
 
   const val libkiwix: String = "2.6.0"
 
+  const val geckoview: String = "140.0.20250707120347"
+
   const val material: String = "1.12.0"
 
   const val multidex: String = "2.0.1"

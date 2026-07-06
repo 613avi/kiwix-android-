@@ -1405,6 +1405,13 @@ abstract class CoreReaderFragment :
 
   override fun getCurrentWebView(): KiwixWebView? {
     if (webViewList.isEmpty()) {
+      // Never create a WebView while an alternative renderer (the embedded
+      // Gecko engine) is active or when the device has no usable WebView.
+      // Doing so would either crash or show the broken system WebView on
+      // devices where the WebView package is missing/disabled.
+      if (isAlternativeReaderActive() || isWebViewNotAvailable()) {
+        return null
+      }
       return newMainPageTab()
     }
     return if (currentWebViewIndex < webViewList.size && currentWebViewIndex > 0) {
