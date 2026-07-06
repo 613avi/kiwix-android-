@@ -339,6 +339,8 @@
   <string name="search_in_page_content">Page content</string>
   <string name="search_in_all_books">All books</string>
   <string name="search_in_all_pages">Search in all pages</string>
+  <string name="pref_gecko_renderer_title">Use Gecko engine</string>
+  <string name="pref_gecko_renderer_summary">Render pages with the built-in Firefox (Gecko) engine instead of Android WebView</string>
   <string name="webview_not_available_title">WebView is not available</string>
   <string name="webview_not_available_message">This device does not have a working Android System WebView, which Kiwix uses to display pages. You can read the current book in your browser instead (any browser engine, e.g. Gecko based browsers such as Firefox, will work), or install/enable Android System WebView and restart Kiwix.</string>
   <string name="open_in_browser">Open in browser</string>

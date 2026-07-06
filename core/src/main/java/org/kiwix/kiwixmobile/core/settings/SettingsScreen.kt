@@ -497,6 +497,8 @@ private fun ExtrasCategory(
 ) {
   val newTabInBackground by coreSettingsViewModel.newTabInBackground.collectAsStateWithLifecycle()
   val externalLinkPopup by coreSettingsViewModel.externalLinkPopup.collectAsStateWithLifecycle()
+  val preferGeckoRenderer by
+    coreSettingsViewModel.preferGeckoRenderer.collectAsStateWithLifecycle()
   val wifiOnly by coreSettingsViewModel.wifiOnly.collectAsStateWithLifecycle()
   SettingsCategory(stringResource(R.string.pref_extras)) {
     SwitchPreference(
@@ -511,6 +513,14 @@ private fun ExtrasCategory(
         summary = stringResource(R.string.pref_external_link_popup_summary),
         checked = externalLinkPopup,
         onCheckedChange = { coreSettingsViewModel.setExternalLinkPopup(it) }
+      )
+    }
+    if (settingsUiState.shouldShowGeckoRendererPreference) {
+      SwitchPreference(
+        title = stringResource(R.string.pref_gecko_renderer_title),
+        summary = stringResource(R.string.pref_gecko_renderer_summary),
+        checked = preferGeckoRenderer,
+        onCheckedChange = { coreSettingsViewModel.setPreferGeckoRenderer(it) }
       )
     }
     if (settingsUiState.shouldShowPrefWifiOnlyPreference) {
