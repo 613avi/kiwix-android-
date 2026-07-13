@@ -23,6 +23,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.view.View
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -232,7 +233,14 @@ private fun ArticleScreen(
     listState.scrollToItem(0)
     isLoading = false
   }
-  Box(modifier = Modifier.fillMaxSize()) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      // Paint the article surface with the theme background so the document
+      // itself (not just the app chrome) follows night mode: dark background
+      // with light text instead of staying black-on-white.
+      .background(MaterialTheme.colorScheme.background)
+  ) {
     LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
       items(blocks) { block ->
         when (block) {

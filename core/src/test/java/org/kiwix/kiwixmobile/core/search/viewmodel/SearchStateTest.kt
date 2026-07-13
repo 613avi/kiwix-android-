@@ -101,6 +101,48 @@ internal class SearchStateTest {
 
   @OptIn(ExperimentalCoroutinesApi::class)
   @Test
+  internal fun `each page content result keeps its own snippet, not the next one's`() =
+    runTest {
+      // Regression test: the snippet must be read from the iterator's current
+      // position *before* next() advances it. libzim's getSnippet() reflects the
+      // iterator's current position, and next() returns the current entry then
+      // advances. If the snippet is read after next(), every result shows the
+      // *next* result's snippet. This stateful mock reproduces those semantics.
+      val titles = listOf("first", "second")
+      val paths = listOf("A/first", "A/second")
+      val snippets = listOf("first snippet", "second snippet")
+      var position = 0
+      val searchWrapper: SearchWrapper = mockk()
+      val searchIteratorWrapper: SearchIteratorWrapper = mockk()
+      every { searchIteratorWrapper.hasNext() } answers { position < titles.size }
+      // getSnippet() reads the *current* position.
+      every { searchIteratorWrapper.snippet } answers { snippets[position] }
+      // next() returns the current entry, then advances the cursor.
+      every { searchIteratorWrapper.next() } answers {
+        val entry: EntryWrapper = mockk()
+        every { entry.title } returns titles[position]
+        every { entry.path } returns paths[position]
+        position++
+        entry
+      }
+      every { searchWrapper.getResults(0, 20) } returns searchIteratorWrapper
+      assertThat(
+        SearchState(
+          "term",
+          SearchResultsWithTerm("", ZimSearchResultSet.PageContent(searchWrapper), mockk()),
+          emptyList(),
+          FromWebView
+        ).getVisibleResults(0, ioDispatcher = mainDispatcherRule.dispatcher)
+      ).isEqualTo(
+        listOf(
+          SearchListItem.ZimSearchResultListItem(titles[0], paths[0], snippets[0]),
+          SearchListItem.ZimSearchResultListItem(titles[1], paths[1], snippets[1])
+        )
+      )
+    }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
   internal fun `visibleResults use recentResults when searchTerm is empty`() =
     runTest {
       val results = listOf(RecentSearchListItem("", ""))
