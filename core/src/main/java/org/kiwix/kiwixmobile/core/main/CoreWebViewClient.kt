@@ -26,6 +26,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.net.toUri
+import androidx.webkit.WebViewFeature
 import org.kiwix.kiwixmobile.core.CoreApp.Companion.instance
 import org.kiwix.kiwixmobile.core.main.reader.ArticleLayoutFixup
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader
@@ -114,16 +115,20 @@ open class CoreWebViewClient(
   }
 
   /**
-   * Darkens the ZIM article content itself when the app is in night mode.
+   * Darkens the ZIM article content itself when the app is in night mode, on the
+   * WebViews that cannot do it themselves.
    *
-   * The app chrome follows the theme automatically, but the WebView renders the
-   * ZIM's own HTML/CSS (typically black-on-white) untouched. To keep the
-   * document readable in night mode we inject a stylesheet that inverts the page
-   * colours (and re-inverts media so images/videos keep their real colours). In
-   * light mode the injected stylesheet is removed so the page renders as
-   * authored.
+   * Normally [KiwixWebView] enables algorithmic darkening, which lets the renderer
+   * darken the document natively (and honour a ZIM's own `prefers-color-scheme`
+   * rules). Only when that feature is unavailable do we fall back to inverting the
+   * page's colours from JavaScript, which is cruder: it also inverts backgrounds
+   * declared in stylesheets and distorts hues. Injecting it on top of a WebView that
+   * already darkens the page would invert it back to light, so it is skipped there.
    */
   private fun applyNightMode(view: WebView) {
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+      return
+    }
     val nightMask = view.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
     val isNight = nightMask == Configuration.UI_MODE_NIGHT_YES
     view.evaluateJavascript(nightModeScript(isNight), null)
