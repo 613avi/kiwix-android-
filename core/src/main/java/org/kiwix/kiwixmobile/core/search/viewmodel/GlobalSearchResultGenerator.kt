@@ -103,8 +103,10 @@ class GlobalSearchResultGeneratorImpl @javax.inject.Inject constructor(
       if (search != null) {
         val iterator = search.getResults(0, GLOBAL_SEARCH_MAX_RESULTS_PER_BOOK)
         while (iterator.hasNext()) {
-          val entry = iterator.next()
+          // The snippet must be read BEFORE next() advances the iterator,
+          // otherwise it belongs to the following result.
           val snippet = runCatching { iterator.snippet }.getOrNull()
+          val entry = iterator.next()
           results.add(
             ZimSearchResultListItem(entry.title, entry.path, snippet, bookTitle, sourceDb)
           )

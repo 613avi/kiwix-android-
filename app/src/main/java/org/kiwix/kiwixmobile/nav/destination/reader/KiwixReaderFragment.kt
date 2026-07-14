@@ -18,6 +18,7 @@
 
 package org.kiwix.kiwixmobile.nav.destination.reader
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuInflater
@@ -58,6 +59,7 @@ import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
 import org.kiwix.kiwixmobile.core.utils.files.FileUtils
 import org.kiwix.kiwixmobile.core.utils.files.Log
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader.Companion.CONTENT_PREFIX
+import org.kiwix.kiwixmobile.gecko.EmbeddedGeckoReaderCallback
 import org.kiwix.kiwixmobile.gecko.EmbeddedGeckoReaderHolder
 import org.kiwix.kiwixmobile.gecko.GeckoSupport
 import org.kiwix.kiwixmobile.main.KiwixMainActivity
@@ -67,6 +69,20 @@ import java.io.File
 class KiwixReaderFragment : CoreReaderFragment() {
   private var isFullScreenVideo: Boolean = false
   private var embeddedGeckoReader: EmbeddedGeckoReaderHolder? = null
+
+  // Bridges the embedded Gecko reader back to the reader so the Gecko build
+  // records history and hands external links to a browser like the WebView build.
+  private val geckoReaderCallback = object : EmbeddedGeckoReaderCallback {
+    override fun onGeckoPageLoaded(url: String?, title: String?) {
+      onAlternativeReaderPageLoaded()
+    }
+
+    override fun onExternalLinkRequested(url: String) {
+      // Live-internet links are not part of the offline book: open them in an
+      // external browser instead of loading them inside the reader.
+      openExternalUrl(Intent(Intent.ACTION_VIEW, url.toUri()))
+    }
+  }
 
   // Cached value of KiwixDataStore.preferGeckoRenderer, refreshed whenever the
   // reader decides how to open a book.
@@ -328,14 +344,58 @@ class KiwixReaderFragment : CoreReaderFragment() {
    */
   override suspend fun shouldOpenInAlternativeRenderer(): Boolean =
     if (GeckoSupport.IS_GECKO_INCLUDED) {
-      refreshGeckoPreference() || isWebViewNotAvailable()
+      // Gecko builds render every book with the bundled engine and never touch
+      // the Android WebView (which may be missing, broken, or censored by an
+      // MDM). The engine is served over a localhost server that bypasses any
+      // WebView based content filtering.
+      refreshGeckoPreference()
     } else {
       // Regular build: fall back to the native (WebView-free) reader mode.
       super.shouldOpenInAlternativeRenderer()
     }
 
+  // In Gecko builds the Android WebView must never be instantiated, not even
+  // transiently while restoring tabs.
+  override fun isWebViewRenderingDisabled(): Boolean = GeckoSupport.IS_GECKO_INCLUDED
+
+  /**
+   * In Gecko builds there is no WebView to read the current URL from, so derive
+   * it from the embedded Gecko reader. The Gecko session shows the localhost
+   * server URL (…/content/<bookId>/<path>); map it back to the
+   * `https://kiwix.app/<path>` content URL the rest of the app uses so bookmarks
+   * and URL tracking stay consistent with the WebView build.
+   */
+  override fun currentArticleUrl(): String? {
+    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.currentArticleUrl()
+    val geckoUrl = embeddedGeckoReader?.currentUrl ?: return null
+    val bookId = zimReaderContainer?.zimFileReader?.id ?: return null
+    val marker = "content/$bookId/"
+    val pathStart = geckoUrl.indexOf(marker)
+    return if (pathStart >= 0) {
+      CONTENT_PREFIX + geckoUrl.substring(pathStart + marker.length)
+    } else {
+      null
+    }
+  }
+
+  override fun currentArticleTitle(): String? =
+    if (GeckoSupport.IS_GECKO_INCLUDED) {
+      embeddedGeckoReader?.currentTitle
+    } else {
+      super.currentArticleTitle()
+    }
+
+  /**
+   * Refreshes the cached [preferGecko] flag. Gecko builds always render with the
+   * embedded engine, so this is unconditionally true there; the settings switch
+   * only matters as a (currently no-op) escape hatch. In non-Gecko builds the
+   * flag has no effect.
+   */
   private suspend fun refreshGeckoPreference(): Boolean =
-    (kiwixDataStore?.preferGeckoRenderer?.first() == true).also { preferGecko = it }
+    (
+      GeckoSupport.IS_GECKO_INCLUDED ||
+        kiwixDataStore?.preferGeckoRenderer?.first() == true
+    ).also { preferGecko = it }
 
   /**
    * Whether pages should currently be rendered with the embedded Gecko engine.
@@ -360,6 +420,7 @@ class KiwixReaderFragment : CoreReaderFragment() {
       activity.toast(string.failed_to_open_in_browser)
       return
     }
+    reader.callback = geckoReaderCallback
     // If the served page could not be loaded, fall back to the server root,
     // which lists the served book.
     reader.loadUrl(servedUrlForPage(baseUrl, pageUrl), baseUrl)

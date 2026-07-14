@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "Kiwix Layout Fixup",
+  "version": "1.0",
+  "description": "Adds a mobile viewport and right-to-left direction to ZIM articles that lack them, so they render correctly on a phone.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "layoutfix@kiwix.org"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

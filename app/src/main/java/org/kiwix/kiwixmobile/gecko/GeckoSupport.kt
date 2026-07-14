@@ -37,12 +37,44 @@ interface EmbeddedGeckoReaderHolder {
   /** Whether the Gecko session can navigate back in its history. */
   val canGoBack: Boolean
 
+  /**
+   * The URL currently shown by the Gecko session (the localhost server URL), or
+   * null before the first page has loaded. Used to keep the reader's URL/
+   * bookmark state in sync without a WebView.
+   */
+  val currentUrl: String?
+
+  /** The title of the page currently shown by the Gecko session, if known. */
+  val currentTitle: String?
+
+  /**
+   * Notified about navigation events (page loads and attempts to leave the
+   * offline content). Set by the reader after the holder is created.
+   */
+  var callback: EmbeddedGeckoReaderCallback?
+
   /** Loads [url]; when it fails to load, [fallbackUrl] is loaded instead. */
   fun loadUrl(url: String, fallbackUrl: String?)
 
   fun goBack()
 
   fun close()
+}
+
+/**
+ * Callbacks from the embedded Gecko reader back to the reader fragment, so the
+ * Gecko build behaves like the WebView build for history and external links.
+ */
+interface EmbeddedGeckoReaderCallback {
+  /** A page finished loading in the Gecko reader (offline content only). */
+  fun onGeckoPageLoaded(url: String?, title: String?)
+
+  /**
+   * The user followed a link that leaves the offline book (e.g. a live internet
+   * link). Gecko does not load it; the app should open it in an external
+   * browser instead.
+   */
+  fun onExternalLinkRequested(url: String)
 }
 
 /**
