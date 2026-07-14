@@ -22,7 +22,7 @@ import org.kiwix.kiwixmobile.core.CoreApp
 import org.kiwix.kiwixmobile.core.utils.datastore.KiwixDataStore
 import org.kiwix.kiwixmobile.di.components.DaggerKiwixComponent
 import org.kiwix.kiwixmobile.di.components.KiwixComponent
-import org.kiwix.kiwixmobile.gecko.GeckoSupport
+import org.kiwix.kiwixmobile.reader.EmbeddedReaderSupport
 
 class KiwixApp : CoreApp() {
   @Suppress("ConvertLambdaToReference") // we want the entire call to be lazy
@@ -32,8 +32,8 @@ class KiwixApp : CoreApp() {
 
   override fun onCreate() {
     super.onCreate()
-    // In builds that bundle the Gecko engine, render with Gecko by default;
+    // In builds that bundle an embedded engine, render with it by default;
     // the settings switch lets the user opt back into the Android WebView.
-    KiwixDataStore.preferGeckoRendererDefault = GeckoSupport.IS_GECKO_INCLUDED
+    KiwixDataStore.preferGeckoRendererDefault = EmbeddedReaderSupport.IS_AVAILABLE
   }
 }

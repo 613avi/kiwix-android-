@@ -133,12 +133,20 @@ android {
       jniLibs.useLegacyPackaging = true
     }
   }
-  if (withGecko) {
-    sourceSets.getByName("main") {
+  // Exactly one of these source sets is compiled in. Both define
+  // org.kiwix.kiwixmobile.reader.EmbeddedReaderSupport: the gecko one creates the
+  // bundled engine, the nogecko one reports that there is none. Selecting the
+  // renderer at compile time (rather than behind a runtime flag) is what keeps a
+  // regular build free of any Gecko class - it cannot take a Gecko code path it
+  // does not contain.
+  sourceSets.getByName("main") {
+    if (withGecko) {
       java.srcDir("src/gecko/java")
       // Bundles the Gecko-only layout-fix web extension (see
       // src/gecko/assets/extensions/layoutfix) so it ships only in Gecko builds.
       assets.srcDir("src/gecko/assets")
+    } else {
+      java.srcDir("src/nogecko/java")
     }
   }
   lint {

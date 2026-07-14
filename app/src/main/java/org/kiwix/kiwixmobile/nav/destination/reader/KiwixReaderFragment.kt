@@ -59,21 +59,22 @@ import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
 import org.kiwix.kiwixmobile.core.utils.files.FileUtils
 import org.kiwix.kiwixmobile.core.utils.files.Log
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader.Companion.CONTENT_PREFIX
-import org.kiwix.kiwixmobile.gecko.EmbeddedGeckoReaderCallback
-import org.kiwix.kiwixmobile.gecko.EmbeddedGeckoReaderHolder
-import org.kiwix.kiwixmobile.gecko.GeckoSupport
+import org.kiwix.kiwixmobile.reader.EmbeddedReader
+import org.kiwix.kiwixmobile.reader.EmbeddedReaderCallback
+import org.kiwix.kiwixmobile.reader.EmbeddedReaderSupport
 import org.kiwix.kiwixmobile.main.KiwixMainActivity
 import org.kiwix.kiwixmobile.ui.KiwixDestination
 import java.io.File
 
 class KiwixReaderFragment : CoreReaderFragment() {
   private var isFullScreenVideo: Boolean = false
-  private var embeddedGeckoReader: EmbeddedGeckoReaderHolder? = null
+  private var embeddedReader: EmbeddedReader? = null
 
-  // Bridges the embedded Gecko reader back to the reader so the Gecko build
-  // records history and hands external links to a browser like the WebView build.
-  private val geckoReaderCallback = object : EmbeddedGeckoReaderCallback {
-    override fun onGeckoPageLoaded(url: String?, title: String?) {
+  // Bridges the embedded renderer back to the reader so a build with an embedded
+  // engine records history and hands external links to a browser like the
+  // WebView build.
+  private val embeddedReaderCallback = object : EmbeddedReaderCallback {
+    override fun onPageLoaded(url: String?, title: String?) {
       onAlternativeReaderPageLoaded()
     }
 
@@ -85,8 +86,9 @@ class KiwixReaderFragment : CoreReaderFragment() {
   }
 
   // Cached value of KiwixDataStore.preferGeckoRenderer, refreshed whenever the
-  // reader decides how to open a book.
-  private var preferGecko = false
+  // reader decides how to open a book. Only meaningful when an embedded engine
+  // is present; a WebView build has none.
+  private var preferEmbeddedReader = false
 
   override fun inject(baseActivity: BaseActivity) {
     baseActivity.cachedComponent.inject(this)
@@ -116,8 +118,8 @@ class KiwixReaderFragment : CoreReaderFragment() {
     val pageUrl = getNavigationResult(PAGE_URL_KEY, kiwixMainActivity)
     val searchItemTitle = getNavigationResult(SEARCH_ITEM_TITLE_KEY, kiwixMainActivity)
     runSafelyInCoreReaderLifecycleScope {
-      // Refresh the cached Gecko preference before deciding how to open pages.
-      refreshGeckoPreference()
+      // Refresh the cached renderer preference before deciding how to open pages.
+      refreshEmbeddedReaderPreference()
       if (pageUrl.isNotEmpty()) {
         if (zimFileUri.isNotEmpty()) {
           tryOpeningZimFile(zimFileUri)
@@ -276,10 +278,10 @@ class KiwixReaderFragment : CoreReaderFragment() {
     onComplete: () -> Unit
   ) {
     if (shouldOpenInAlternativeRenderer()) {
-      // Tabs are WebView based; with the embedded Gecko renderer the book is
+      // Tabs are WebView based; with an embedded renderer the book is
       // simply (re)opened and any pending search result is loaded afterwards
       // by the onComplete callback.
-      restoreBookInGecko(restoreOrigin, onComplete)
+      restoreBookInEmbeddedReader(restoreOrigin, onComplete)
       return
     }
     when (restoreOrigin) {
@@ -338,89 +340,91 @@ class KiwixReaderFragment : CoreReaderFragment() {
   }
 
   /**
-   * Open books with the bundled Gecko engine when the user prefers it in the
-   * settings, or when this device has no usable WebView. Only applies to
-   * builds that include GeckoView (built with the `withGecko` Gradle property).
+   * Open books with the embedded engine when the user prefers it in the
+   * settings, or when this device has no usable WebView. Only applies to builds
+   * that bundle one (see EmbeddedReaderSupport); a WebView build has none.
    */
   override suspend fun shouldOpenInAlternativeRenderer(): Boolean =
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
-      // Gecko builds render every book with the bundled engine and never touch
+    if (EmbeddedReaderSupport.IS_AVAILABLE) {
+      // Such builds render every book with the bundled engine and never touch
       // the Android WebView (which may be missing, broken, or censored by an
       // MDM). The engine is served over a localhost server that bypasses any
       // WebView based content filtering.
-      refreshGeckoPreference()
+      refreshEmbeddedReaderPreference()
     } else {
       // Regular build: fall back to the native (WebView-free) reader mode.
       super.shouldOpenInAlternativeRenderer()
     }
 
-  // In Gecko builds the Android WebView must never be instantiated, not even
+  // With an embedded engine the Android WebView must never be instantiated, not even
   // transiently while restoring tabs.
-  override fun isWebViewRenderingDisabled(): Boolean = GeckoSupport.IS_GECKO_INCLUDED
+  override fun isWebViewRenderingDisabled(): Boolean = EmbeddedReaderSupport.IS_AVAILABLE
 
   /**
-   * In Gecko builds there is no WebView to read the current URL from, so derive
-   * it from the embedded Gecko reader. The Gecko session shows the localhost
+   * With an embedded engine there is no WebView to read the current URL from, so
+   * derive it from the embedded renderer, which shows the localhost
    * server URL (…/content/<bookId>/<path>); map it back to the
    * `https://kiwix.app/<path>` content URL the rest of the app uses so bookmarks
    * and URL tracking stay consistent with the WebView build.
    */
   override fun currentArticleUrl(): String? {
-    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.currentArticleUrl()
-    val geckoUrl = embeddedGeckoReader?.currentUrl ?: return null
+    if (!EmbeddedReaderSupport.IS_AVAILABLE) return super.currentArticleUrl()
+    val servedUrl = embeddedReader?.currentUrl ?: return null
     val bookId = zimReaderContainer?.zimFileReader?.id ?: return null
     val marker = "content/$bookId/"
-    val pathStart = geckoUrl.indexOf(marker)
+    val pathStart = servedUrl.indexOf(marker)
     return if (pathStart >= 0) {
-      CONTENT_PREFIX + geckoUrl.substring(pathStart + marker.length)
+      CONTENT_PREFIX + servedUrl.substring(pathStart + marker.length)
     } else {
       null
     }
   }
 
   override fun currentArticleTitle(): String? =
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
-      embeddedGeckoReader?.currentTitle
+    if (EmbeddedReaderSupport.IS_AVAILABLE) {
+      embeddedReader?.currentTitle
     } else {
       super.currentArticleTitle()
     }
 
   /**
-   * Refreshes the cached [preferGecko] flag. Gecko builds always render with the
+   * Refreshes the cached [preferEmbeddedReader] flag. Builds with an embedded
+   * engine always render with it, so this is unconditionally true there; the
    * embedded engine, so this is unconditionally true there; the settings switch
-   * only matters as a (currently no-op) escape hatch. In non-Gecko builds the
+   * settings switch only matters as a (currently no-op) escape hatch. In a
+   * WebView build the
    * flag has no effect.
    */
-  private suspend fun refreshGeckoPreference(): Boolean =
+  private suspend fun refreshEmbeddedReaderPreference(): Boolean =
     (
-      GeckoSupport.IS_GECKO_INCLUDED ||
+      EmbeddedReaderSupport.IS_AVAILABLE ||
         kiwixDataStore?.preferGeckoRenderer?.first() == true
-    ).also { preferGecko = it }
+    ).also { preferEmbeddedReader = it }
 
   /**
-   * Whether pages should currently be rendered with the embedded Gecko engine.
+   * Whether pages should currently be rendered with the embedded engine.
    * Uses the cached settings value so it can be checked from non-suspending
    * code paths (e.g. URL loading).
    */
-  private fun useGeckoRenderer(): Boolean =
-    GeckoSupport.IS_GECKO_INCLUDED &&
-      (isAlternativeReaderActive() || preferGecko || isWebViewNotAvailable())
+  private fun useEmbeddedReader(): Boolean =
+    EmbeddedReaderSupport.IS_AVAILABLE &&
+      (isAlternativeReaderActive() || preferEmbeddedReader || isWebViewNotAvailable())
 
   /**
-   * Shows the current book inside the reader screen with the embedded Gecko
-   * engine, served by the in-app localhost kiwix server. When [pageUrl]
+   * Shows the current book inside the reader screen with the embedded engine,
+   * served by the in-app localhost kiwix server. When [pageUrl]
    * (a https://kiwix.app/... URL) is given, that page is loaded; otherwise the
    * main page of the book is loaded.
    */
-  private suspend fun openBookInGecko(pageUrl: String? = null) {
+  private suspend fun openBookInEmbeddedReader(pageUrl: String? = null) {
     val baseUrl = startLocalContentServer() ?: return
-    val reader = embeddedGeckoReader
-      ?: GeckoSupport.createEmbeddedReader(requireContext())?.also { embeddedGeckoReader = it }
+    val reader = embeddedReader
+      ?: EmbeddedReaderSupport.createEmbeddedReader(requireContext())?.also { embeddedReader = it }
     if (reader == null) {
       activity.toast(string.failed_to_open_in_browser)
       return
     }
-    reader.callback = geckoReaderCallback
+    reader.callback = embeddedReaderCallback
     // If the served page could not be loaded, fall back to the server root,
     // which lists the served book.
     reader.loadUrl(servedUrlForPage(baseUrl, pageUrl), baseUrl)
@@ -446,40 +450,40 @@ class KiwixReaderFragment : CoreReaderFragment() {
   }
 
   override fun openBookInAlternativeRenderer() {
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
-      lifecycleScope.launch { openBookInGecko() }
+    if (EmbeddedReaderSupport.IS_AVAILABLE) {
+      lifecycleScope.launch { openBookInEmbeddedReader() }
     } else {
       super.openBookInAlternativeRenderer()
     }
   }
 
   override fun loadUrlInAlternativeReader(url: String): Boolean {
-    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.loadUrlInAlternativeReader(url)
-    if (!useGeckoRenderer()) return false
-    lifecycleScope.launch { openBookInGecko(url) }
+    if (!EmbeddedReaderSupport.IS_AVAILABLE) return super.loadUrlInAlternativeReader(url)
+    if (!useEmbeddedReader()) return false
+    lifecycleScope.launch { openBookInEmbeddedReader(url) }
     return true
   }
 
   override fun onAlternativeReaderBackPressed(): Boolean {
-    if (!GeckoSupport.IS_GECKO_INCLUDED) return super.onAlternativeReaderBackPressed()
-    val reader = embeddedGeckoReader ?: return false
+    if (!EmbeddedReaderSupport.IS_AVAILABLE) return super.onAlternativeReaderBackPressed()
+    val reader = embeddedReader ?: return false
     if (!isAlternativeReaderActive() || !reader.canGoBack) return false
     reader.goBack()
     return true
   }
 
   override fun closeAlternativeReader() {
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
-      embeddedGeckoReader?.close()
-      embeddedGeckoReader = null
+    if (EmbeddedReaderSupport.IS_AVAILABLE) {
+      embeddedReader?.close()
+      embeddedReader = null
     }
     super.closeAlternativeReader()
   }
 
   override fun showWebViewNotAvailableDialog() {
-    // With the bundled Gecko engine there is no need to ask the user to open
-    // an external browser: render the book with Gecko directly.
-    if (GeckoSupport.IS_GECKO_INCLUDED) {
+    // With a bundled engine there is no need to ask the user to open an external
+    // browser: render the book with that engine directly.
+    if (EmbeddedReaderSupport.IS_AVAILABLE) {
       openBookInAlternativeRenderer()
     } else {
       super.showWebViewNotAvailableDialog()
@@ -491,7 +495,7 @@ class KiwixReaderFragment : CoreReaderFragment() {
     runCatching { onInvalidZimFileFound.invoke() }
   }
 
-  private suspend fun restoreBookInGecko(restoreOrigin: RestoreOrigin, onComplete: () -> Unit) {
+  private suspend fun restoreBookInEmbeddedReader(restoreOrigin: RestoreOrigin, onComplete: () -> Unit) {
     when (restoreOrigin) {
       FromExternalLaunch -> {
         if (!isAdded) return
@@ -501,11 +505,11 @@ class KiwixReaderFragment : CoreReaderFragment() {
           }?.first()
         if (zimReaderSource?.canOpenInLibkiwix() == true) {
           if (zimReaderContainer?.zimReaderSource == null) {
-            // Opens the book, which shows it with the Gecko renderer.
+            // Opens the book, which shows it with the embedded renderer.
             openZimFile(zimReaderSource)
           } else {
             zimReaderContainer?.zimFileReader?.let(::setUpBookmarks)
-            openBookInGecko()
+            openBookInEmbeddedReader()
           }
         } else {
           readerScreenState.value.snackBarHostState.snack(
@@ -517,10 +521,10 @@ class KiwixReaderFragment : CoreReaderFragment() {
       }
 
       FromSearchScreen -> {
-        // The book is already open in the container; make sure the Gecko view
+        // The book is already open in the container; make sure the embedded view
         // is showing before the searched page is loaded.
         if (!isAlternativeReaderActive()) {
-          openBookInGecko()
+          openBookInEmbeddedReader()
         }
       }
     }

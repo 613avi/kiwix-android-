@@ -22,6 +22,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
 import org.kiwix.kiwixmobile.core.utils.files.Log
+import org.kiwix.kiwixmobile.reader.EmbeddedReader
+import org.kiwix.kiwixmobile.reader.EmbeddedReaderCallback
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
@@ -37,10 +39,10 @@ import org.mozilla.geckoview.WebRequestError
  * WebView nor a browser.
  *
  * This class only exists in builds created with the `withGecko` Gradle
- * property; it is instantiated by name via [GeckoSupport.createEmbeddedReader].
+ * property; it is constructed by the gecko half of
+ * [org.kiwix.kiwixmobile.reader.EmbeddedReaderSupport].
  */
-@Suppress("Unused") // Instantiated reflectively by GeckoSupport.
-class EmbeddedGeckoReader(context: Context) : EmbeddedGeckoReaderHolder {
+class EmbeddedGeckoReader(context: Context) : EmbeddedReader {
   private val geckoView = GeckoView(context)
   private val session = GeckoSession()
   private var fallbackUrl: String? = null
@@ -60,7 +62,7 @@ class EmbeddedGeckoReader(context: Context) : EmbeddedGeckoReaderHolder {
   override var currentTitle: String? = null
     private set
 
-  override var callback: EmbeddedGeckoReaderCallback? = null
+  override var callback: EmbeddedReaderCallback? = null
 
   init {
     // Render ZIM pages with a phone sized viewport even when they lack a mobile
@@ -130,7 +132,7 @@ class EmbeddedGeckoReader(context: Context) : EmbeddedGeckoReaderHolder {
         // Report finished loads so the reader can record history and refresh its
         // URL/bookmark state, mirroring the WebView build.
         if (success) {
-          callback?.onGeckoPageLoaded(currentUrl, currentTitle)
+          callback?.onPageLoaded(currentUrl, currentTitle)
         }
       }
     }
