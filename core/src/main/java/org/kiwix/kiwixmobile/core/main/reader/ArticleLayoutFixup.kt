@@ -87,6 +87,30 @@ object ArticleLayoutFixup {
   // smaller than the screen (minimum-scale=1). Zooming in is still allowed.
   private const val VIEWPORT_CONTENT = "width=device-width, initial-scale=1, minimum-scale=1"
 
+  // In dark mode the renderer lightens text but leaves some backgrounds the ZIM
+  // declares itself untouched (Wikipedia's portal box is one), so those boxes keep
+  // a light fill and end up as pale text on a pale background. A CSS rule cannot
+  // catch them: the fill may come from a stylesheet class, an inline style or a
+  // legacy bgcolor attribute. Instead measure the computed colour and clear the
+  // ones that are actually light, letting the darkened page show through.
+  //
+  // Runs only when the document is in the dark colour scheme, which the WebView
+  // reports once algorithmic darkening is on, so light mode is untouched.
+  private const val NEUTRALISE_LIGHT_BACKGROUNDS_JS = """
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      var nodes = document.querySelectorAll('body *');
+      for (var i = 0; i < nodes.length; i++) {
+        var bg = window.getComputedStyle(nodes[i]).backgroundColor;
+        var m = /rgba?\(([0-9]+),\s*([0-9]+),\s*([0-9]+)(?:,\s*([0-9.]+))?\)/.exec(bg);
+        if (!m) continue;
+        if (m[4] !== undefined && parseFloat(m[4]) === 0) continue;
+        // Rec. 601 luma; anything brighter than mid grey reads as a light fill.
+        var luma = (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255;
+        if (luma > 0.6) nodes[i].style.setProperty('background-color', 'transparent', 'important');
+      }
+    }
+  """
+
   /**
    * JavaScript that adds a device-width viewport (when the page has none), caps
    * oversized media, and — when [isRtl] is true — sets the document direction to
@@ -116,6 +140,7 @@ object ArticleLayoutFixup {
             head.appendChild(s);
           }
           $setRtl
+          $NEUTRALISE_LIGHT_BACKGROUNDS_JS
         } catch (e) {}
       })();
       """.trimIndent()
