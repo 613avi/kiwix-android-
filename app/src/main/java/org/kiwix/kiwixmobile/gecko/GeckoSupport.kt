@@ -85,7 +85,13 @@ interface EmbeddedGeckoReaderCallback {
  * [IS_GECKO_INCLUDED] is false and [createEmbeddedReader] returns null.
  */
 object GeckoSupport {
-  const val IS_GECKO_INCLUDED: Boolean = BuildConfig.WITH_GECKO
+  // Deliberately not a `const val`: a const is inlined into every call site at
+  // compile time, so switching between a `-PwithGecko` build and a regular one
+  // can leave stale classes with the old value baked in. The app then takes the
+  // Gecko path without the engine being present and the reader renders nothing.
+  // Reading it at runtime keeps every call site honest.
+  @JvmField
+  val IS_GECKO_INCLUDED: Boolean = BuildConfig.WITH_GECKO
 
   /**
    * Creates an embedded Gecko reader, or returns null in builds without the
