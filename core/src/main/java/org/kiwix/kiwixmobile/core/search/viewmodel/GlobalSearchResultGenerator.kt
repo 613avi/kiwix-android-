@@ -103,8 +103,9 @@ class GlobalSearchResultGeneratorImpl @javax.inject.Inject constructor(
       if (search != null) {
         val iterator = search.getResults(0, GLOBAL_SEARCH_MAX_RESULTS_PER_BOOK)
         while (iterator.hasNext()) {
-          // The snippet must be read BEFORE next() advances the iterator,
-          // otherwise it belongs to the following result.
+          // Read the snippet from the iterator's current position *before*
+          // next() advances it; otherwise each result shows the next result's
+          // snippet.
           val snippet = runCatching { iterator.snippet }.getOrNull()
           val entry = iterator.next()
           results.add(

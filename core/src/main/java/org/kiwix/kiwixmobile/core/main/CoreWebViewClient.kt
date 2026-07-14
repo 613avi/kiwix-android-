@@ -18,6 +18,7 @@
 package org.kiwix.kiwixmobile.core.main
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.webkit.MimeTypeMap
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -107,8 +108,25 @@ open class CoreWebViewClient(
       ArticleLayoutFixup.injectionJs(ArticleLayoutFixup.isRtlLanguage(zimReaderContainer.language)),
       null
     )
+    applyNightMode(view)
     jumpToAnchor(view, url)
     callback.webViewUrlFinishedLoading()
+  }
+
+  /**
+   * Darkens the ZIM article content itself when the app is in night mode.
+   *
+   * The app chrome follows the theme automatically, but the WebView renders the
+   * ZIM's own HTML/CSS (typically black-on-white) untouched. To keep the
+   * document readable in night mode we inject a stylesheet that inverts the page
+   * colours (and re-inverts media so images/videos keep their real colours). In
+   * light mode the injected stylesheet is removed so the page renders as
+   * authored.
+   */
+  private fun applyNightMode(view: WebView) {
+    val nightMask = view.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+    val isNight = nightMask == Configuration.UI_MODE_NIGHT_YES
+    view.evaluateJavascript(nightModeScript(isNight), null)
   }
 
   /*
@@ -153,5 +171,39 @@ open class CoreWebViewClient(
       "zim://content/",
       "content://${instance.packageName}.zim.base/".toUri().toString()
     )
+
+    private const val NIGHT_MODE_STYLE_ID = "kiwixNightMode"
+
+    // Inverts page colours and re-inverts media, so text becomes light-on-dark
+    // while images/videos keep their real colours.
+    private const val NIGHT_MODE_CSS =
+      "html{-webkit-filter:invert(100%) hue-rotate(180deg)!important;" +
+        "filter:invert(100%) hue-rotate(180deg)!important;background:#fafafa!important;}" +
+        "img,video,picture,canvas,svg,iframe,[style*='background-image']{" +
+        "-webkit-filter:invert(100%) hue-rotate(180deg)!important;" +
+        "filter:invert(100%) hue-rotate(180deg)!important;}"
+
+    /**
+     * Builds a self-invoking script that adds (when [enable]) or removes a
+     * night-mode stylesheet from the current document, identified by
+     * [NIGHT_MODE_STYLE_ID] so repeated calls are idempotent.
+     */
+    private fun nightModeScript(enable: Boolean): String =
+      """
+      (function(){
+        var id='$NIGHT_MODE_STYLE_ID';
+        var existing=document.getElementById(id);
+        if($enable){
+          if(!existing){
+            var style=document.createElement('style');
+            style.id=id;
+            style.textContent="$NIGHT_MODE_CSS";
+            (document.head||document.documentElement).appendChild(style);
+          }
+        } else if(existing){
+          existing.parentNode.removeChild(existing);
+        }
+      })();
+      """.trimIndent()
   }
 }
