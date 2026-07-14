@@ -935,11 +935,20 @@ private fun TabItemCard(
           addView(webView)
           val clickableView = View(context).apply {
             layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-            // Prevent clicking inside the webView when tabs are active.
-            setOnClickListener { onTabClickListener.onSelectTab(index) }
             contentDescription = "${webView.contentDescription}${webView.hashCode()}"
           }
           addView(clickableView)
+        }
+      },
+      update = { frameLayout ->
+        // Re-bind the overlay's click listener on every (re)bind so a recycled
+        // tab view always reports the CURRENT index. The factory runs only once,
+        // so binding there leaves a reused view holding a stale index — which
+        // made the first click after opening the switcher select the wrong
+        // (adjacent) tab. The overlay is the last child added in the factory.
+        // Prevent clicking inside the webView when tabs are active.
+        frameLayout.getChildAt(frameLayout.childCount - 1)?.setOnClickListener {
+          onTabClickListener.onSelectTab(index)
         }
       },
       modifier = Modifier

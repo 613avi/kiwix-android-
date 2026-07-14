@@ -88,10 +88,12 @@ data class SearchState(
           while (searchIterator.hasNext()) {
             if (job?.isActive == false) break
             yield()
-            val entry = searchIterator.next()
-            // A quote of the sentence containing the match; shown under the
-            // page title so the user can see why the page matched.
+            // The snippet must be read from the iterator BEFORE next() advances
+            // it, otherwise it belongs to the following result (each entry then
+            // shows the next entry's text). A quote of the matching sentence,
+            // shown under the page title so the user can see why the page matched.
             val snippet = runCatching { searchIterator.snippet }.getOrNull()
+            val entry = searchIterator.next()
             results.add(SearchListItem.ZimSearchResultListItem(entry.title, entry.path, snippet))
           }
         }

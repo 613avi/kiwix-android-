@@ -239,8 +239,8 @@ class SearchViewModel @Inject constructor(
     actions.collect {
       when (it) {
         ExitedSearch -> _effects.tryEmit(PopFragmentBackstack)
-        is OnItemClick -> saveSearchAndOpenItem(it.searchListItem, false)
-        is OnOpenInNewTabClick -> saveSearchAndOpenItem(it.searchListItem, true)
+        is OnItemClick -> onSearchItemClicked(it.searchListItem, false)
+        is OnOpenInNewTabClick -> onSearchItemClicked(it.searchListItem, true)
         is OnItemLongClick -> showDeleteDialog(it)
         is Filter -> filter.tryEmit(it.term)
         is ConfirmedDelete -> deleteItemAndShowToast(it)
@@ -291,11 +291,22 @@ class SearchViewModel @Inject constructor(
     )
   }
 
+  private fun onSearchItemClicked(searchListItem: SearchListItem, openInNewTab: Boolean) {
+    if (searchListItem is SearchListItem.RecentSearchListItem) {
+      // A recent search is a saved query: re-run it instead of opening an
+      // article. This also fills the search box with the term.
+      onSearchValueChanged(searchListItem.value)
+      return
+    }
+    saveSearchAndOpenItem(searchListItem, openInNewTab)
+  }
+
   private fun saveSearchAndOpenItem(searchListItem: SearchListItem, openInNewTab: Boolean) {
+    // Store the query the user typed (not the opened article) as a recent search.
     _effects.tryEmit(
       SaveSearchToRecents(
         recentSearchRoomDao,
-        searchListItem,
+        uiState.value.searchText,
         zimReaderContainer.id,
         viewModelScope
       )

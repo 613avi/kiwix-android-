@@ -528,7 +528,9 @@ abstract class CoreReaderFragment :
     activity?.let {
       // Skip the workaround on devices without a usable WebView, otherwise
       // instantiating the WebView would crash the app. See #710 for the workaround.
-      if (WebViewAvailability.isWebViewAvailable(it)) {
+      // Also skip it in builds that never use a WebView (e.g. the Gecko build),
+      // where even this throwaway WebView must not be created.
+      if (!isWebViewRenderingDisabled() && WebViewAvailability.isWebViewAvailable(it)) {
         WebView(it).destroy() // Workaround for buggy webViews see #710
       }
     }
@@ -1201,6 +1203,9 @@ abstract class CoreReaderFragment :
    * @return The initialized `KiwixWebView` instance, or null if initialization fails.
    */
   private fun initalizeWebView(url: String, shouldLoadUrl: Boolean = true): KiwixWebView? {
+    // Never create a WebView in builds that render exclusively with an
+    // alternative engine (e.g. the Gecko build).
+    if (isWebViewRenderingDisabled()) return null
     if (isAdded) {
       val attrs = activity?.getAttributes(R.xml.webview)
       val webView: KiwixWebView? = runCatching {
@@ -1409,7 +1414,9 @@ abstract class CoreReaderFragment :
       // Gecko engine) is active or when the device has no usable WebView.
       // Doing so would either crash or show the broken system WebView on
       // devices where the WebView package is missing/disabled.
-      if (isAlternativeReaderActive() || isWebViewNotAvailable()) {
+      if (isAlternativeReaderActive() || isWebViewNotAvailable() ||
+        isWebViewRenderingDisabled()
+      ) {
         return null
       }
       return newMainPageTab()
@@ -1582,11 +1589,12 @@ abstract class CoreReaderFragment :
   protected abstract fun createNewTab()
 
   private fun showAddNoteDialog() {
-    val webView = (activity as? WebViewProvider)?.getCurrentWebView()
+    // Use the renderer-agnostic helpers so notes also work with the Gecko
+    // reader, which has no WebView.
     val config = AddNoteDialogConfig(
-      articleTitle = webView?.title,
-      currentWebViewUrl = webView?.url,
-      currentWebViewTitle = webView?.title
+      articleTitle = currentArticleTitle(),
+      currentWebViewUrl = currentArticleUrl(),
+      currentWebViewTitle = currentArticleTitle()
     )
 
     alertDialogShower?.show(
@@ -1639,6 +1647,17 @@ abstract class CoreReaderFragment :
 
   protected fun isWebViewNotAvailable(): Boolean =
     context?.let { !WebViewAvailability.isWebViewAvailable(it) } == true
+
+  /**
+   * Whether this build must never instantiate an Android [WebView] at all.
+   *
+   * Builds that always render with an alternative engine (e.g. the bundled
+   * Gecko build) return true so that no [KiwixWebView] is ever created, even
+   * transiently during tab restore. This matters on devices where the system
+   * WebView is missing, broken, or censored by an MDM: touching it there would
+   * crash or surface a blocked/broken page. Regular builds return false.
+   */
+  protected open fun isWebViewRenderingDisabled(): Boolean = false
 
   /**
    * Shows the given view (e.g. the embedded GeckoView in builds bundling the
@@ -2077,7 +2096,7 @@ abstract class CoreReaderFragment :
   private fun toggleBookmark() {
     try {
       lifecycleScope.launch {
-        getCurrentWebView()?.url?.let { articleUrl ->
+        currentArticleUrl()?.let { articleUrl ->
           zimReaderContainer?.zimFileReader?.let { zimFileReader ->
             val libKiwixBook = getLibkiwixBook(zimFileReader)
             if (isBookmarked) {
@@ -2087,7 +2106,7 @@ abstract class CoreReaderFragment :
                 lifecycleScope = lifecycleScope
               )
             } else {
-              getCurrentWebView()?.title?.let {
+              currentArticleTitle()?.let {
                 repositoryActions?.saveBookmark(
                   LibkiwixBookmarkItem(it, articleUrl, zimFileReader, libKiwixBook)
                 )
@@ -2478,10 +2497,20 @@ abstract class CoreReaderFragment :
       isPinShortcutSupported = ShortcutManagerCompat.isRequestPinShortcutSupported(requireContext())
     )
 
-  protected fun urlIsValid(): Boolean = getCurrentWebView()?.url != null
+  protected fun urlIsValid(): Boolean = currentArticleUrl() != null
+
+  /**
+   * The URL of the article currently shown, as a `https://kiwix.app/...` content
+   * URL. Backed by the current WebView; the Gecko build overrides this to read
+   * the URL from the embedded Gecko reader (which has no WebView).
+   */
+  protected open fun currentArticleUrl(): String? = getCurrentWebView()?.url
+
+  /** The title of the article currently shown, if known. */
+  protected open fun currentArticleTitle(): String? = getCurrentWebView()?.title
 
   private fun updateUrlFlow() {
-    getCurrentWebView()?.url?.let { webUrlsFlow.value = it }
+    currentArticleUrl()?.let { webUrlsFlow.value = it }
   }
 
   private fun loadPrefs() {
@@ -2620,34 +2649,49 @@ abstract class CoreReaderFragment :
     if (isAdded) {
       updateTableOfContents()
       updateBottomToolbarArrowsAlpha()
-      val zimFileReader = zimReaderContainer?.zimFileReader
-      if (hasValidFileAndUrl(getCurrentWebView()?.url, zimFileReader)) {
-        val timeStamp = System.currentTimeMillis()
-        val sdf = SimpleDateFormat(
-          "d MMM yyyy",
-          getCurrentLocale(
-            requireActivity()
-          )
-        )
-        @Suppress("UnsafeCallOnNullableType")
-        getCurrentWebView()?.let {
-          val history = HistoryItem(
-            it.url!!,
-            it.title!!,
-            sdf.format(Date(timeStamp)),
-            timeStamp,
-            zimFileReader!!
-          )
-          lifecycleScope.launch {
-            repositoryActions?.saveHistory(history)
-          }
-        }
-      }
+      recordArticleInHistory(getCurrentWebView()?.url, getCurrentWebView()?.title)
       updateBottomToolbarVisibility()
       if (!isWebViewHistoryRestoring) {
         saveTabStates()
       }
     }
+  }
+
+  /**
+   * Records the currently shown article in the browsing history. Shared by the
+   * WebView load callback and the alternative (Gecko) reader so both renderers
+   * populate the History screen. No-op when the URL/title/book is unavailable.
+   */
+  protected fun recordArticleInHistory(articleUrl: String?, articleTitle: String?) {
+    val zimFileReader = zimReaderContainer?.zimFileReader
+    if (!hasValidFileAndUrl(articleUrl, zimFileReader) ||
+      articleUrl == null || articleTitle == null || zimFileReader == null
+    ) {
+      return
+    }
+    val timeStamp = System.currentTimeMillis()
+    val sdf = SimpleDateFormat("d MMM yyyy", getCurrentLocale(requireActivity()))
+    val history = HistoryItem(
+      articleUrl,
+      articleTitle,
+      sdf.format(Date(timeStamp)),
+      timeStamp,
+      zimFileReader
+    )
+    lifecycleScope.launch {
+      repositoryActions?.saveHistory(history)
+    }
+  }
+
+  /**
+   * Called by the alternative (Gecko) reader when a page finishes loading, so
+   * the reader records history and refreshes its URL/bookmark state just like
+   * the WebView build does in [webViewUrlFinishedLoading].
+   */
+  protected fun onAlternativeReaderPageLoaded() {
+    if (!isAdded) return
+    updateUrlFlow()
+    recordArticleInHistory(currentArticleUrl(), currentArticleTitle())
   }
 
   private fun hasValidFileAndUrl(url: String?, zimFileReader: ZimFileReader?): Boolean =
@@ -2826,7 +2870,12 @@ abstract class CoreReaderFragment :
         // perform database operation on IO thread.
         repositoryActions?.loadWebViewPagesHistory().orEmpty()
       }
-      if (webViewHistoryList.isEmpty()) {
+      // Builds that never use a WebView (e.g. the Gecko build) never store any
+      // WebView history, so an empty list is normal there and must not be
+      // treated as "nothing to restore". Route them through the valid-history
+      // path so the book (and any pending search result) is restored by the
+      // alternative renderer.
+      if (webViewHistoryList.isEmpty() && !isWebViewRenderingDisabled()) {
         restoreViewStateOnInvalidWebViewHistory()
         // handle the pending intent if any present.
         handlePendingIntent()

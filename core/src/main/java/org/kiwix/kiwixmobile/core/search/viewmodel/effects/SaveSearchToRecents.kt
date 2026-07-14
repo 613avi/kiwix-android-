@@ -24,24 +24,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.kiwix.kiwixmobile.core.base.SideEffect
 import org.kiwix.kiwixmobile.core.dao.RecentSearchRoomDao
-import org.kiwix.kiwixmobile.core.reader.addContentPrefix
-import org.kiwix.kiwixmobile.core.search.SearchListItem
 
+/**
+ * Saves the search *term* the user typed to the recent searches, so tapping a
+ * recent entry re-runs that search (rather than reopening a single article).
+ * The stored URL is null on purpose: a recent search is a query, not a page.
+ */
 @Suppress("InjectDispatcher")
 data class SaveSearchToRecents(
   private val recentSearchRoomDao: RecentSearchRoomDao,
-  private val searchListItem: SearchListItem,
+  private val searchTerm: String,
   private val id: String?,
   private val viewModelScope: CoroutineScope
 ) : SideEffect<Unit> {
   override fun invokeWith(activity: AppCompatActivity) {
+    if (searchTerm.isBlank()) return
     id?.let {
       viewModelScope.launch(Dispatchers.IO) {
-        recentSearchRoomDao.saveSearch(
-          searchListItem.value,
-          it,
-          searchListItem.url?.addContentPrefix
-        )
+        recentSearchRoomDao.saveSearch(searchTerm, it, null)
       }
     }
   }

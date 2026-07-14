@@ -29,6 +29,23 @@ val apkPrefix get() = System.getenv("TAG") ?: "kiwix"
 // The Gecko engine adds roughly 70 MB per ABI, so the APK is restricted to ARM
 // devices when this flag is enabled. Regular builds are completely unaffected.
 val withGecko = hasProperty("withGecko")
+
+// The Gecko engine is a debug-only aid for WebView-less devices; it must never
+// ship in a release. If a release task is requested together with -PwithGecko,
+// fail fast rather than produce a Gecko-bundled release APK/bundle.
+if (withGecko && gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true) ||
+      it.contains("bundle", ignoreCase = true) ||
+      it.contains("playStore", ignoreCase = true) ||
+      it.contains("standalone", ignoreCase = true) ||
+      it.contains("nightly", ignoreCase = true)
+  }
+) {
+  throw GradleException(
+    "The Gecko engine (-PwithGecko) is excluded from releases. " +
+      "Build Gecko only with debug tasks, e.g. ./gradlew assembleDebug -PwithGecko."
+  )
+}
 val autoModifiedTrackedFiles = listOf(
   File("$rootDir/core/src/main/res/values-b+be+tarask/strings.xml"),
   File("$rootDir/core/src/main/res/values-b+be+tarask+old/strings.xml"),
@@ -80,6 +97,9 @@ android {
   defaultConfig {
     // This fork is branded "Kiwix+" for its extended search; the Gecko build
     // carries the engine name so both variants are distinguishable.
+    // A distinct applicationId lets "Kiwix+" install alongside the original
+    // Play-Store Kiwix (org.kiwix.kiwixmobile) instead of colliding with it.
+    applicationId = "org.kiwix.kiwixmobile.plus"
     resValue("string", "app_name", if (withGecko) "Kiwix+ Gecko" else "Kiwix+")
     resValue("string", "app_search_string", "Search Kiwix+")
     versionCode = "".getVersionCode()
@@ -90,6 +110,9 @@ android {
     if (withGecko) {
       // Makes the installed variant recognisable in Settings -> version.
       versionNameSuffix = "-gecko"
+      // Give the Gecko build its own package name so it installs alongside the
+      // WebView "Kiwix+" (org.kiwix.kiwixmobile.plus) rather than replacing it.
+      applicationIdSuffix = ".gecko"
       // GeckoView requires at least Android 8 (API 26); the regular build keeps
       // supporting Android 7.1 (API 25).
       minSdk = 26
@@ -113,6 +136,9 @@ android {
   if (withGecko) {
     sourceSets.getByName("main") {
       java.srcDir("src/gecko/java")
+      // Bundles the Gecko-only layout-fix web extension (see
+      // src/gecko/assets/extensions/layoutfix) so it ships only in Gecko builds.
+      assets.srcDir("src/gecko/assets")
     }
   }
   lint {

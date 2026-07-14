@@ -26,6 +26,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.net.toUri
 import org.kiwix.kiwixmobile.core.CoreApp.Companion.instance
+import org.kiwix.kiwixmobile.core.main.reader.ArticleLayoutFixup
 import org.kiwix.kiwixmobile.core.reader.ZimFileReader
 import org.kiwix.kiwixmobile.core.reader.ZimReaderContainer
 import org.kiwix.kiwixmobile.core.utils.TAG_KIWIX
@@ -100,6 +101,12 @@ open class CoreWebViewClient(
     if (invalidUrl) {
       return
     }
+    // Fix the layout of ZIM pages that lack a mobile viewport or a RTL direction
+    // (see ArticleLayoutFixup). Applied after load; safe to run repeatedly.
+    view.evaluateJavascript(
+      ArticleLayoutFixup.injectionJs(ArticleLayoutFixup.isRtlLanguage(zimReaderContainer.language)),
+      null
+    )
     jumpToAnchor(view, url)
     callback.webViewUrlFinishedLoading()
   }
